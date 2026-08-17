@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # GitHub-hosted runners have no GPU. PrismPrice refuses to run ML code on CPU
+  # unless this is set explicitly; the governance suite touches no ML code, so
+  # the flag only matters if a future test imports a model.
+  PRISMPRICE_ALLOW_CPU: "1"
+
+jobs:
+  test:
+    name: pytest (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check src tests
+
+      - name: Format check
+        run: ruff format --check src tests
+
+      - name: Type check
+        run: mypy
+
+      - name: Test
+        # Deeper Hypothesis search than the local default (2,000 examples per
+        # property rather than 1,000). Kept at a number CI can actually finish;
+        # the docs quote this figure rather than an aspirational one.
+        run: pytest --hypothesis-profile=ci --cov=prismprice --cov-report=term-missing
+
+  build:
+    name: build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip build twine
+      - run: python -m build
+      - run: python -m twine check dist/*

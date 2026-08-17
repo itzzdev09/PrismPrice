@@ -1,0 +1,58 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Environments
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Model artefacts, metrics, decision logs (see README §7)
+artifacts/
+mlruns/
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.joblib
+*.pkl
+*.txt.model
+
+# Data — never commit raw or augmented datasets
+data/raw/
+data/interim/
+data/processed/
+*.parquet
+*.duckdb
+*.duckdb.wal
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

@@ -1,0 +1,117 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prismprice"
+version = "0.1.0"
+description = "Decision-support system for retail and e-commerce dynamic pricing"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = ["pricing", "elasticity", "causal-inference", "retail", "revenue-management"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+
+# The core package is the governance and decision contracts, which need nothing
+# but Pydantic. Modelling, serving and dashboard stacks are opt-in extras: a
+# hard dependency on torch + LightGBM + DuckDB would pull ~3 GB on any install,
+# including one that only wants to evaluate a guardrail.
+dependencies = [
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+# GPU wheels are NOT installable from PyPI's default index. See README §Quickstart:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+modelling = [
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "scikit-learn>=1.3.0",
+    "lightgbm>=4.0.0",
+    "econml>=0.15.0",
+    "scikit-survival>=0.22.0",
+    "duckdb>=0.9.0",
+]
+serving = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+]
+dashboards = [
+    "streamlit>=1.30.0",
+    "plotly>=5.18.0",
+]
+ops = [
+    "mlflow>=2.9.0",
+    "prefect>=2.14.0",
+    "great-expectations>=0.18.0",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "hypothesis>=6.80.0",
+    "httpx>=0.24.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/itzzdev09/PrismPrice"
+Documentation = "https://github.com/itzzdev09/PrismPrice/tree/main/docs"
+Issues = "https://github.com/itzzdev09/PrismPrice/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+prismprice = ["py.typed"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+filterwarnings = [
+    "error::DeprecationWarning:prismprice.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "SIM",  # simplify
+    "RUF",
+]
+ignore = [
+    "E501",  # line length is handled by the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["torch.*", "lightgbm.*", "xgboost.*"]
+ignore_missing_imports = true

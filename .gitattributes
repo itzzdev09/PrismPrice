@@ -1,0 +1,14 @@
+# Normalise line endings: the repo stores LF, Windows working copies get CRLF.
+# Without this, CI on Linux and a Windows checkout disagree about every file.
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+*.png   binary
+*.jpg   binary
+*.parquet binary
+*.duckdb  binary
