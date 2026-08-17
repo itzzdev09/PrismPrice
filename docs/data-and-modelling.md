@@ -2,7 +2,7 @@
 
 This document details the data generation, dataset augmentation, demand un-censoring, and machine learning methods used across PrismPrice.
 
-> **Status.** Specification only — none of the components below are implemented yet ([README §0](../README.md#0-status)). The declared assumptions here are binding on the implementations when they arrive: the cost model in §2.1 in particular is an *assumption*, not a measurement, and any margin figure derived from it inherits that.
+> **Status.** §1 (synthetic generator), §2 (UCI augmentation) and §3 (un-censoring) are implemented; §4 (cold-start embeddings) is implemented apart from the encoder itself. See [README §0](../README.md#0-status). The declared assumptions here are binding: the cost model in §2.1 in particular is an *assumption*, not a measurement, and any margin figure derived from it inherits that. `AssumptionSet.describe()` prints them alongside the data.
 >
 > **Compute.** Every model described here trains on GPU. `prismprice.compute.require_gpu()` raises rather than falling back to CPU — see [README §8.1](../README.md#81-gpu-only-compute-policy).
 
@@ -65,22 +65,35 @@ c_i \times \left( \exp\left( \kappa \cdot \frac{I_{\text{threshold}} - I_{it}}{I
 
 ---
 
-## 3. Demand Un-Censoring (Tobit / Kaplan-Meier)
+## 3. Demand Un-Censoring (right-censored Tobit)
 
-During stockout periods ($I_{it} = 0$), observed sales equal zero, but true unconstrained demand $q^*_{it} > 0$. Naive models underestimate demand.
+When stock binds, observed sales are $\min(q^*, \text{on hand})$, not demand. A model trained on the raw series learns that demand collapses exactly when a product sells well.
 
-### 3.1 Tobit Model Formulation
+### 3.1 Why right-censoring, not censoring at zero
 
-Unconstrained demand $q^*_{it}$ is treated as a latent variable observed only when inventory is positive:
+An earlier draft of this section modelled the problem as a Type I Tobit censored at 0 — the textbook case, where a stockout means zero recorded sales. Real periodic-review replenishment produces **partial fulfilment**: stock runs out mid-period having already served some units. What is known on a stockout day is therefore
 
-$$q_{it} = \begin{cases} 
-q^*_{it} & \text{if } I_{it} > 0 \text{ (Uncensored)} \\
-\text{Censored at } 0 & \text{if } I_{it} = 0 \text{ (Censored)}
-\end{cases}$$
+$$q^*_{it} \ge q_{it} \quad \text{(right-censored at the observed value)}$$
 
-The log-likelihood for Tobit estimation adjusts for right-truncated/censored sales points:
+not $q_{it} = 0$. Censoring at zero would be the wrong likelihood, and would leave every partially-fulfilled day treated as a clean observation.
 
-$$\ln L = \sum_{q_{it} > 0} \left[ -\ln \sigma + \phi\left( \frac{q_{it} - \mathbf{x}'_{it}\boldsymbol{\beta}}{\sigma} \right) \right] + \sum_{q_{it} = 0} \ln \Phi\left( \frac{0 - \mathbf{x}'_{it}\boldsymbol{\beta}}{\sigma} \right)$$
+### 3.2 Log-space specification
+
+Demand is multiplicative — the generator in §1.1 is $\log q = \mathbf{x}'\boldsymbol{\beta} + \epsilon$ with normal $\epsilon$ — so the model is fitted on $y = \log q$. In levels the normality assumption the Tobit likelihood rests on is simply false.
+
+$$\ln L = \sum_{i \notin C} \left[ \ln \phi\left( \frac{y_{it} - \mathbf{x}'_{it}\boldsymbol{\beta}}{\sigma} \right) - \ln \sigma \right] + \sum_{i \in C} \ln \left[ 1 - \Phi\left( \frac{y_{it} - \mathbf{x}'_{it}\boldsymbol{\beta}}{\sigma} \right) \right]$$
+
+where $C$ is the set of censored (stockout) observations. Per-SKU fixed effects are included; without them one intercept is shared across SKUs of very different baseline volume and the correction inherits that misfit.
+
+### 3.3 Recovering the censored values
+
+For a censored row the estimate is the mean of the normal tail above the point stock ran out — the inverse Mills ratio correction:
+
+$$\mathbb{E}[y^* \mid y^* > y] = \mathbf{x}'\boldsymbol{\beta} + \sigma \cdot \frac{\phi(\alpha)}{1 - \Phi(\alpha)}, \qquad \alpha = \frac{y - \mathbf{x}'\boldsymbol{\beta}}{\sigma}$$
+
+Uncensored rows are passed through unchanged: the model fills gaps, it does not overwrite observations.
+
+**Measured result.** On a synthetic panel with 17% censored days, scoring only the censored rows against known latent demand: WAPE falls from 0.87 (using the raw series) to 0.19, removing 78% of the censoring error.
 
 ---
 

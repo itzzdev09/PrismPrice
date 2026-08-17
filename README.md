@@ -14,22 +14,24 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ## 0. Status
 
-This document specifies the full system. **One layer of it is built.** The table says which, so you can tell the design from the code before you clone it.
+This document specifies the full system. **Three layers of it are built.** The table says which, so you can tell the design from the code before you clone it.
 
 | Layer | Status | What exists |
 | --- | --- | --- |
-| **L4 Governance** | 🟢 **Built & tested** | All 9 guardrails, reason codes, structured verdicts, ladder feasibility filtering, degradation rungs 1/2/4, immutable decision-record contract. 100 tests, property-based. |
-| L0 Data foundation | ⚪ Spec only | Contracts drafted in [docs/architecture.md](docs/architecture.md#3-data-contracts) |
-| L1 Features | ⚪ Spec only | Un-censoring and cold-start methods specified in [docs/data-and-modelling.md](docs/data-and-modelling.md) |
-| L2 Estimation | ⚪ Spec only | Demand / DML elasticity / survival CLV / competitor game |
+| **L0 Data foundation** | 🟢 **Built & tested** | Schema contracts with 12 quality-gate codes, quarantine on failure, synthetic panel generator with known ground truth, deterministic UCI augmentation with a declared assumption set |
+| **L1 Features** | 🟢 **Built & tested** | Point-in-time feature assembly with a proven leakage guarantee, right-censored Tobit demand un-censoring (removes 78% of censoring error on synthetic truth), cold-start elasticity priors from embedding neighbours |
+| **L4 Governance** | 🟢 **Built & tested** | All 9 guardrails, reason codes, structured verdicts, ladder feasibility filtering, degradation rungs 1/2/4, immutable decision-record contract |
 | L3 Decision | 🟡 Partial | Feasibility filtering and the fallback path are built; the objective, ladder generation and Monte-Carlo simulation are not |
+| L2 Estimation | ⚪ Spec only | Demand / DML elasticity / survival CLV / competitor game |
 | L5 Learning | ⚪ Spec only | Experiments, safe bandits, OPE |
 | L6 Serving | ⚪ Spec only | FastAPI service, batch scoring, price feed |
 | L7 Observability | ⚪ Spec only | KPI definitions in [docs/metrics.md](docs/metrics.md) |
 
-Everything marked *spec only* is a design that has been thought through and written down, not code that runs. The roadmap in §9 is the build order.
+201 tests, property-based where the guarantee is universal and scored against known ground truth where it is statistical. Everything marked *spec only* is a design that has been thought through and written down, not code that runs. The roadmap in §9 is the build order.
 
 **Why governance first.** It is the layer where a defect is unrecoverable — a bad price publishes, transacts, and cannot be recalled — and it is the only layer that can be proven correct without any data at all.
+
+**Why the synthetic generator second.** It is the measuring instrument for everything after it. On real data a wrong elasticity and a right one look identical; against a known true parameter they do not. The generator confounds prices on purpose (a naive estimator is off by ~1.4) and censors demand on purpose, so each estimator has something real to prove.
 
 ---
 
@@ -313,8 +315,8 @@ prismprice/
 │   ├── config.py       🟢 tolerances, governance defaults, policy dials
 │   ├── compute.py      🟢 GPU-only device policy (§8.1)
 │   ├── governance/     🟢 guardrails, reason codes, decision-record contracts
-│   ├── data/           ⚪ ingestion, schema contracts, quality gates
-│   ├── features/       ⚪ point-in-time feature assembly, un-censoring, embeddings
+│   ├── data/           🟢 schema contracts, quality gates, synthetic truth, UCI augmentation
+│   ├── features/       🟢 point-in-time assembly, Tobit un-censoring, cold-start priors
 │   ├── estimation/     ⚪ demand, causal elasticity (DML), survival CLV, competitor game
 │   ├── decision/       ⚪ ladder, portfolio simulation, objective, optimiser
 │   ├── learning/       ⚪ experiments, safe bandits, off-policy evaluation
@@ -383,8 +385,8 @@ Governance (phase 6) was built first, out of order, for the reason given in §0.
 | --- | --- | --- | --- |
 | **0 Foundation** | 🟢 done | Repo, CI, config, compute policy, packaging | `pytest` green in CI on push |
 | **6 Governance** | 🟢 done | All 9 guardrails, reason codes, audit contracts | Property tests prove guardrails never violated |
-| **1 Data & Features** | ⚪ next | Ingestion, un-censoring, cold-start embeddings, leakage tests | Data quality report generated |
-| **2 Demand** | ⚪ | Quantile demand model + calibration | p10/p90 coverage within tolerance |
+| **1 Data & Features** | 🟢 done | Contracts, quality gates, synthetic truth, un-censoring, cold-start priors, leakage tests | Quality report generated; leakage test passes; un-censoring beats the naive series on known truth |
+| **2 Demand** | ⚪ next | Quantile demand model + calibration | p10/p90 coverage within tolerance |
 | **3 Causal Elasticity** | ⚪ | DML implementation controlling for confounders | Recovers known true elasticity on synthetic data |
 | **4 Retention** | ⚪ | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
 | **5 Decision** | ⚪ | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |

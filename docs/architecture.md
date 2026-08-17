@@ -2,7 +2,7 @@
 
 Engineering detail behind the [README](../README.md). This is the document to read before writing code in any layer.
 
-> **Status.** §4.7 (governance) describes code that exists. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
+> **Status.** §3 (data contracts), §4.1 (features) and §4.7 (governance) describe code that exists. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
 
 ---
 
@@ -36,7 +36,7 @@ Engineering detail behind the [README](../README.md). This is the document to re
 
 ---
 
-## 3. Data contracts
+## 3. Data contracts — 🟢 built
 
 Every source declares a contract enforced at the boundary. A violation quarantines the batch and raises an alert; bad data never flows downstream.
 
@@ -52,19 +52,21 @@ columns:
   invoice_ts:    {type: timestamp, nullable: false, max: now()}
   customer_id:   {type: string, nullable: true}
 checks:
-  - name: returns_are_negative_quantity
-    expr: "quantity < 0 implies invoice_id LIKE 'C%'"
-  - name: revenue_reconciles
-    expr: "abs(sum(quantity * unit_price) - control_total) < 0.01"
+  - returns_are_negative_quantity
+  - price_is_positive
 ```
 
+**Checks are names, not expressions.** An earlier draft of this document wrote them as evaluable strings (`expr: "quantity < 0 implies ..."`). Resolving those at runtime means either `eval` on configuration — an injection surface on the one code path whose entire job is to distrust its input — or writing an expression parser. Instead, checks are Python callables in `CHECK_REGISTRY` (`data/contracts.py`), referenced by name; a name that is not registered fails at load time rather than being silently skipped.
+
 **Why `nullable: true` on `customer_id` matters:** guest checkouts represent a significant portion of real transaction logs. Retention modelling must exclude them explicitly rather than silently treating them as one synthetic mega-customer.
+
+**Twelve gate codes.** `DQ-001` missing column, `DQ-002` wrong dtype, `DQ-003` unexpected null, `DQ-004` out of range, `DQ-005` disallowed value, `DQ-006` duplicate primary key, `DQ-007` null primary key, `DQ-008` stale source, `DQ-009` future timestamp, `DQ-010` row check failed, `DQ-011` orphan foreign key, `DQ-012` empty batch. All checks run in one pass, so a report diagnoses the whole batch rather than the first fault found. `DQ-009` is an error rather than a curiosity: a row stamped after `as_of` is a leakage vector.
 
 ---
 
 ## 4. Component specifications
 
-### 4.1 Feature builder (`features/`) — ⚪ spec only
+### 4.1 Feature builder (`features/`) — 🟢 built
 
 **Contract:** given `(sku, as_of_date)`, return features computed using **only** data with `timestamp < as_of_date`.
 
@@ -76,10 +78,14 @@ checks:
 | Inventory & Cover | on hand, days of cover, markdown risk, opportunity shadow price $\nu_i$ |
 | Competition | gap to competitor, rank, observation staleness, competitor reaction score |
 | Customer mix | new vs. repeat share, cohort value mix, price shock exposure |
-| **Demand Un-censoring** | **Tobit / Kaplan-Meier survival adjustments** to historical sales during stockouts |
-| **Cold-Start Embeddings** | **CLIP / BERT LLM text & visual embeddings** mapping new SKUs to nearest neighbors |
+| **Demand Un-censoring** | **Right-censored Tobit** on log demand, correcting sales recorded during stockouts |
+| **Cold-Start Embeddings** | Text/visual embeddings mapping new SKUs to nearest-neighbour elasticity priors |
 
-**Leakage test (mandatory):** build features at `T`, then append data from `T+1..T+30` and rebuild. Values must be identical.
+**Leakage test (mandatory):** build features at `T`, then append data from `T+1..T+30` and rebuild. Values must be identical. Implemented three ways in `tests/test_features.py`: appending the future, removing the decision day, and corrupting future rows outright and demanding no reaction.
+
+**Un-censoring is right-censored, not censored at zero.** The textbook Type I Tobit assumes a stockout means zero recorded sales. Real replenishment produces *partial* fulfilment — stock runs out having served some units — so what is known is `demand >= units_served`. Censoring at zero would be the wrong likelihood. The model is fitted on log demand, because demand is multiplicative and the normality assumption the likelihood rests on is false in levels. Measured on synthetic data with known latent demand, it removes ~78% of the censoring error.
+
+**Cold start returns nothing rather than something.** `knn_prior` drops neighbours below a similarity floor instead of down-weighting them. A weighted average over the whole catalogue always returns a number, and that number is the catalogue mean wearing a similarity score — the caller must be able to tell "no analogue exists" from "here is a weak analogue", because only the first should trigger degradation.
 
 ---
 
@@ -276,8 +282,8 @@ Four properties of this record are enforced by the model, not by convention:
 | Phase | Status | Executable Gate |
 | --- | --- | --- |
 | 0 Foundation | 🟢 met | `ruff`, `mypy --strict` and `pytest` green in CI on Python 3.10–3.12 |
+| 1 Data & Features | 🟢 met | Quality report generated with 12 gate codes; leakage test passes; Tobit un-censoring removes ~78% of censoring error against known latent demand |
 | 6 Governance | 🟢 met | Property tests prove 0 guardrail violations; every `GuardrailCode` has an implementation; regulatory constraints fail closed |
-| 1 Data & Features | ⚪ | Quality report clean; Tobit un-censoring & CLIP embeddings verified; leakage test passes |
 | 2 Demand | ⚪ | Quantile LightGBM p10/p90 empirical coverage within $\pm 3\text{pp}$ |
 | 3 Causal Elasticity | ⚪ | DML recovers synthetic ground-truth $\beta$ within CI on $\ge 90\%$ of SKUs |
 | 4 Retention | ⚪ | Deep Survival cohort curve MAE below threshold on held-out test window |

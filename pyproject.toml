@@ -113,5 +113,19 @@ warn_unused_ignores = true
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["torch.*", "lightgbm.*", "xgboost.*"]
+# Third-party libraries without bundled type information. Scoped to these
+# modules rather than set globally, so a genuinely missing import in our own
+# code is still an error.
+module = [
+    "torch.*",
+    "lightgbm.*",
+    "xgboost.*",
+    "pandas.*",
+    "scipy.*",
+    "sklearn.*",
+    "econml.*",
+    "sksurv.*",
+    "sentence_transformers.*",
+    "yaml.*",
+]
 ignore_missing_imports = true
