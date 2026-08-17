@@ -330,9 +330,17 @@ def generate_panel(
 
     epsilon = rng.normal(0.0, noise_sd, (n_days, n_skus))
 
-    # log q_it = alpha_i + beta_i log p_it + sum_j eta_ij log p_jt + gamma_i' X_t + eps
-    own = log_prices * beta
-    cross = log_prices @ eta.T
+    # log q_it = alpha_i + beta_i log(p_it/p_i0) + sum_j eta_ij log(p_jt/p_j0)
+    #            + gamma_i' X_t + eps
+    #
+    # Prices enter *relative to their base price*. Written as beta_i * log(p_it)
+    # the intercept has to absorb -beta_i * log(p_i0) ~ +6, so alpha ~ N(3.5, 0.5)
+    # produces demand of ~0.1 units/day rather than the ~33 it is meant to mean.
+    # Normalising leaves every elasticity identical — d log q / d log p is
+    # unchanged — while making alpha readable as log demand at the base price.
+    relative_log_price = log_prices - np.log(base_price)
+    own = relative_log_price * beta
+    cross = relative_log_price @ eta.T
     structural = confounders.to_numpy() @ gamma.T
     latent = np.exp(alpha + own + cross + structural + epsilon)
 

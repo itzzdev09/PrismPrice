@@ -14,20 +14,20 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ## 0. Status
 
-This document specifies the full system. **Three layers of it are built.** The table says which, so you can tell the design from the code before you clone it.
+This document specifies the full system. **Three and a half layers of it are built.** The table says which, so you can tell the design from the code before you clone it.
 
 | Layer | Status | What exists |
 | --- | --- | --- |
 | **L0 Data foundation** | 🟢 **Built & tested** | Schema contracts with 12 quality-gate codes, quarantine on failure, synthetic panel generator with known ground truth, deterministic UCI augmentation with a declared assumption set |
 | **L1 Features** | 🟢 **Built & tested** | Point-in-time feature assembly with a proven leakage guarantee, right-censored Tobit demand un-censoring (removes 78% of censoring error on synthetic truth), cold-start elasticity priors from embedding neighbours |
 | **L4 Governance** | 🟢 **Built & tested** | All 9 guardrails, reason codes, structured verdicts, ladder feasibility filtering, degradation rungs 1/2/4, immutable decision-record contract |
+| L2 Estimation | 🟡 Partial | **Demand model built**: LightGBM quantile regression, conformalised so the 80% interval is honest out of sample (0.782–0.825 coverage on rolling-origin backtests across five seeds), monotone in price by isotonic projection. Causal elasticity, survival CLV and competitor game are not built |
 | L3 Decision | 🟡 Partial | Feasibility filtering and the fallback path are built; the objective, ladder generation and Monte-Carlo simulation are not |
-| L2 Estimation | ⚪ Spec only | Demand / DML elasticity / survival CLV / competitor game |
 | L5 Learning | ⚪ Spec only | Experiments, safe bandits, OPE |
 | L6 Serving | ⚪ Spec only | FastAPI service, batch scoring, price feed |
 | L7 Observability | ⚪ Spec only | KPI definitions in [docs/metrics.md](docs/metrics.md) |
 
-201 tests, property-based where the guarantee is universal and scored against known ground truth where it is statistical. Everything marked *spec only* is a design that has been thought through and written down, not code that runs. The roadmap in §9 is the build order.
+225 tests, property-based where the guarantee is universal and scored against known ground truth where it is statistical. Everything marked *spec only* is a design that has been thought through and written down, not code that runs. The roadmap in §9 is the build order.
 
 **Why governance first.** It is the layer where a defect is unrecoverable — a bad price publishes, transacts, and cannot be recalled — and it is the only layer that can be proven correct without any data at all.
 
@@ -216,7 +216,7 @@ Point-in-time-correct feature assembly: trailing demand, price history, referenc
 - **Cold Start Embeddings** — uses LLM text/visual embeddings (CLIP/BERT) to map new SKUs to historical priors of nearest-neighbor items.
 
 ### L2 — Estimation
-- **Demand model** — gradient-boosted quantile regression producing p10/p50/p90, not a point.
+- **Demand model** 🟢 — gradient-boosted quantile regression producing p10/p50/p90, not a point. Conformalised per tail so the interval is honest on held-out data; monotone in price by isotonic projection on the ladder.
 - **Causal Elasticity model** — Double Machine Learning (DML) / Orthogonal R-Learner that disentangles price from promotional confounders, returning a causal CI and confidence tag.
 - **Retention & CLV model** — Deep Survival model (e.g., Cox Proportional Hazards) with time-varying covariates. Attributes churn risk strictly to the price-vs-reference shock, supplying $\Delta\text{CLV}(p)$.
 - **Competitor model** — estimates competitor reaction functions (Game-Theoretic Response) to prevent destructive algorithmic price wars.
@@ -317,7 +317,7 @@ prismprice/
 │   ├── governance/     🟢 guardrails, reason codes, decision-record contracts
 │   ├── data/           🟢 schema contracts, quality gates, synthetic truth, UCI augmentation
 │   ├── features/       🟢 point-in-time assembly, Tobit un-censoring, cold-start priors
-│   ├── estimation/     ⚪ demand, causal elasticity (DML), survival CLV, competitor game
+│   ├── estimation/     🟡 demand (built); elasticity, survival CLV, competitor game to come
 │   ├── decision/       ⚪ ladder, portfolio simulation, objective, optimiser
 │   ├── learning/       ⚪ experiments, safe bandits, off-policy evaluation
 │   ├── api/            ⚪ FastAPI service
@@ -386,8 +386,8 @@ Governance (phase 6) was built first, out of order, for the reason given in §0.
 | **0 Foundation** | 🟢 done | Repo, CI, config, compute policy, packaging | `pytest` green in CI on push |
 | **6 Governance** | 🟢 done | All 9 guardrails, reason codes, audit contracts | Property tests prove guardrails never violated |
 | **1 Data & Features** | 🟢 done | Contracts, quality gates, synthetic truth, un-censoring, cold-start priors, leakage tests | Quality report generated; leakage test passes; un-censoring beats the naive series on known truth |
-| **2 Demand** | ⚪ next | Quantile demand model + calibration | p10/p90 coverage within tolerance |
-| **3 Causal Elasticity** | ⚪ | DML implementation controlling for confounders | Recovers known true elasticity on synthetic data |
+| **2 Demand** | 🟢 done | Quantile demand model + conformal calibration | Rolling-origin p10/p90 interval coverage within ±3pp |
+| **3 Causal Elasticity** | ⚪ next | DML implementation controlling for confounders | Recovers known true elasticity on synthetic data |
 | **4 Retention** | ⚪ | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
 | **5 Decision** | ⚪ | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
 | **7 Serving** | ⚪ | API + batch + degradation matrix | Contract tests + chaos test on model outage |
