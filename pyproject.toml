@@ -38,6 +38,10 @@ modelling = [
     "lightgbm>=4.0.0",
     "econml>=0.15.0",
     "scikit-survival>=0.22.0",
+    # The retention layer fits its Cox partial likelihood in torch, on GPU.
+    # This pulls the CPU wheel; the CUDA build comes from the PyTorch index
+    # (README Quickstart) and is what require_gpu() insists on outside CI.
+    "torch>=2.0.0",
     "duckdb>=0.9.0",
     # DuckDB needs pytz to convert TIMESTAMPTZ into pandas, and the store
     # pins its session to UTC deliberately (storage/store.py). pandas used to

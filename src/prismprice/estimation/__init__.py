@@ -18,17 +18,29 @@ from prismprice.estimation.elasticity import (
     score_against_truth,
     temporal_folds,
 )
+from prismprice.estimation.retention import (
+    CLVEstimate,
+    CoxSurvivalModel,
+    SurvivalFit,
+    clv_sensitivity,
+    price_shock,
+)
 
 __all__ = [
+    "CLVEstimate",
     "CalibrationReport",
+    "CoxSurvivalModel",
     "DemandForecast",
     "DoubleMLElasticity",
     "ElasticityEstimate",
     "ElasticityScore",
     "QuantileDemandModel",
+    "SurvivalFit",
     "add_category_price_control",
     "calibration_report",
+    "clv_sensitivity",
     "naive_ols_elasticity",
+    "price_shock",
     "rolling_origin_backtest",
     "score_against_truth",
     "temporal_folds",
