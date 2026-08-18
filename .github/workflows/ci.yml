@@ -34,16 +34,20 @@ jobs:
           cache: pip
 
       - name: Install
-        # The modelling extra is required, not optional, for CI: most of the
-        # test suite imports numpy/pandas/lightgbm/duckdb. Installing only
-        # ".[dev]" collects the tests and then fails every one of them at import,
-        # which reads as a catastrophic regression rather than a missing
-        # dependency. The GPU wheels are deliberately not installed — runners
-        # have no GPU, PRISMPRICE_ALLOW_CPU covers the torch requirement, and
-        # LightGBM's CPU fallback is now a warning by design.
+        # modelling and serving are both required, not optional, for CI: most of
+        # the suite imports numpy/pandas/lightgbm/duckdb, and the L6 tests import
+        # fastapi. Installing only ".[dev]" collects the tests and then fails
+        # every one at import, which reads as a catastrophic regression rather
+        # than a missing dependency. Omitting "serving" fails earlier and more
+        # confusingly still: mypy reports fastapi as a missing stub and every
+        # route decorator as untyped, so the type check goes red for a reason
+        # that has nothing to do with the code being checked. The GPU wheels are
+        # deliberately not installed — runners have no GPU, PRISMPRICE_ALLOW_CPU
+        # covers the torch requirement, and LightGBM's CPU fallback is a warning
+        # by design.
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,modelling]"
+          pip install -e ".[dev,modelling,serving]"
 
       - name: Lint
         run: ruff check src tests
