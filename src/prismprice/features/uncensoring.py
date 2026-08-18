@@ -170,7 +170,8 @@ class TobitUncensoring:
         # starts at; clip guards the far-tail region where the ratio is numerically
         # unstable.
         truncated_mean = np.maximum(truncated_mean, observed_log)
-        return np.where(censored, truncated_mean, observed_log)
+        latent: NDArray[np.float64] = np.where(censored, truncated_mean, observed_log)
+        return latent
 
     def transform(
         self, df: pd.DataFrame, output_column: str = "units_uncensored_est"

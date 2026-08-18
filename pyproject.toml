@@ -107,7 +107,12 @@ ignore = [
 "tests/*" = ["B011"]
 
 [tool.mypy]
-python_version = "3.10"
+# No `python_version` pin. Pinning it to 3.10 while CI runs the matrix on 3.10,
+# 3.11 and 3.12 makes mypy parse each interpreter's *installed* stubs under 3.10
+# rules, and numpy's 3.12 stubs use `type` statements — so the 3.12 job failed
+# inside numpy's own .pyi rather than in this codebase. Letting mypy match the
+# interpreter it runs under is what makes the matrix mean anything: each version
+# is checked as itself. `requires-python` still declares the supported floor.
 files = ["src"]
 strict = true
 plugins = ["pydantic.mypy"]
