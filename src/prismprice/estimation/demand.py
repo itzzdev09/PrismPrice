@@ -400,7 +400,14 @@ class QuantileDemandModel:
         ascending = np.argsort(prices, kind="stable")
         projected = predicted.copy()
         for column in projected.columns:
-            values = projected[column].to_numpy(dtype=float)
+            # copy=True is load-bearing. `to_numpy()` may hand back a read-only
+            # view of the frame's own buffer when no dtype conversion is needed,
+            # and the in-place scatter below then raises "assignment destination
+            # is read-only". Whether it does depends on the pandas version, so
+            # this passed locally and failed on the 3.11/3.12 CI runners — the
+            # monotonicity projection is not optional, and a version-dependent
+            # crash in it is worse than a copy per column.
+            values = projected[column].to_numpy(dtype=float, copy=True)
             values[ascending] = np.minimum.accumulate(values[ascending])
             projected[column] = values
         return projected

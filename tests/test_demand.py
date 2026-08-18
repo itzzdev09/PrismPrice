@@ -299,3 +299,28 @@ def test_torch_backed_components_still_require_a_gpu(monkeypatch):
     monkeypatch.setattr(compute, "gpu_report", lambda: GPUInfo(available=False, reason="simulated"))
     with pytest.raises(GPUUnavailableError, match=r"estimation\.retention"):
         compute.require_gpu("estimation.retention")
+
+
+def test_monotone_projection_survives_a_read_only_frame():
+    """Regression: pandas may hand back a read-only view of its own buffer.
+
+    `to_numpy()` skips the copy when no dtype conversion is needed, so the
+    in-place scatter in _project_non_increasing raised "assignment destination
+    is read-only". Whether it does depends on the pandas version, so this passed
+    on the local 3.10 environment and failed on the 3.11 and 3.12 CI runners.
+    Monotonicity in price is the property that stops an optimiser walking up a
+    demand curve, so a version-dependent crash in it is not a cosmetic problem.
+    """
+    values = np.array([[5.0, 3.0], [9.0, 4.0], [2.0, 1.0]])
+    values.flags.writeable = False
+    predicted = pd.DataFrame(values, columns=["p10", "p50"])
+    assert not predicted["p10"].to_numpy(dtype=float).flags.writeable, (
+        "this test is only meaningful while pandas returns a read-only view here"
+    )
+
+    prices = np.array([10.0, 20.0, 30.0])
+    projected = QuantileDemandModel._project_non_increasing(predicted, prices)
+
+    for column in projected.columns:
+        series = projected[column].to_numpy()
+        assert np.all(np.diff(series) <= 1e-12), f"{column} is not non-increasing in price"

@@ -39,6 +39,12 @@ modelling = [
     "econml>=0.15.0",
     "scikit-survival>=0.22.0",
     "duckdb>=0.9.0",
+    # DuckDB needs pytz to convert TIMESTAMPTZ into pandas, and the store
+    # pins its session to UTC deliberately (storage/store.py). pandas used to
+    # pull pytz in transitively and no longer does, so it was present locally
+    # and absent on CI — the failure surfaced as a DuckDB InvalidInputException
+    # rather than an ImportError, which is not a trail anyone should have to follow.
+    "pytz>=2023.3",
     # Reading the UCI Online Retail workbooks; see data/sources.py.
     "openpyxl>=3.1.0",
 ]
