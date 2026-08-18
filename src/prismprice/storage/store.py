@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS daily_demand (
     units       DOUBLE  NOT NULL,
     revenue     DOUBLE  NOT NULL,
     price       DOUBLE  NOT NULL,
+    list_price  DOUBLE  NOT NULL,
     n_invoices  BIGINT  NOT NULL,
     batch_id    VARCHAR NOT NULL,
     PRIMARY KEY (sku, date)
@@ -296,11 +297,32 @@ class PriceStore:
     def rebuild_daily_demand(self, batch_id: str | None = None) -> int:
         """Aggregate transactions into the ``(sku, date)`` panel.
 
+        **Two prices are recorded, because they answer different questions.**
+
+        ``price`` is realised revenue over units — the quantity-weighted average
+        actually taken. It is the right number for revenue and margin, and the
+        wrong number to regress demand on. A plain unweighted mean is worse
+        still: it lets a single one-unit line at an odd price move the day as
+        much as a hundred-unit line at the real one.
+
+        ``list_price`` is the highest unit price seen that day, which on this
+        retailer's data is the undiscounted price — what a customer buying a
+        small quantity pays. **This is the treatment variable for elasticity.**
+
+        The distinction is not fastidiousness; it was forced by the data. This
+        retailer runs a volume-discount ladder, so within a single SKU-day the
+        correlation between log unit price and log line quantity is -0.67, and
+        88.7% of SKU-days show it. Most of the apparent daily "price variation"
+        is therefore order-size mix: a large wholesale order mechanically lowers
+        the weighted price and raises units on the same day. Regressing demand
+        on that recovers the discount schedule with the sign of an elasticity,
+        and a pricing system would read it as "customers are extremely price
+        sensitive" and cut prices on the strength of its own billing rules.
+        Switching to the list price cuts the mechanical correlation from -0.47
+        to -0.15.
+
         Returns are netted rather than dropped — a return is real information
-        about demand, and discarding it inflates the series. The price recorded
-        is quantity-weighted, because a mean over invoice lines lets a single
-        one-unit line at an odd price move the daily price as much as a
-        hundred-unit line at the real one.
+        about demand, and discarding it inflates the series.
         """
         marker = batch_id or str(uuid4())
         self._connection.execute("DELETE FROM daily_demand")
@@ -313,6 +335,7 @@ class PriceStore:
                 SUM(quantity)                        AS units,
                 SUM(quantity * unit_price)           AS revenue,
                 SUM(quantity * unit_price) / NULLIF(SUM(quantity), 0) AS price,
+                MAX(unit_price)                      AS list_price,
                 COUNT(DISTINCT invoice_id)           AS n_invoices,
                 ? AS batch_id
             FROM transactions
@@ -342,7 +365,10 @@ class PriceStore:
                 with four observations cannot support an elasticity, and letting
                 it through produces a confident number from nothing.
         """
-        query = "SELECT sku, date, units, revenue, price, n_invoices FROM daily_demand"
+        query = (
+            "SELECT sku, date, units, revenue, price, list_price, n_invoices "
+            "FROM daily_demand"
+        )
         clauses: list[str] = []
         params: list[Any] = []
 

@@ -44,6 +44,7 @@ from prismprice.data.contracts import ColumnContract, DType, SourceContract
 __all__ = [
     "UCI_ONLINE_RETAIL_II",
     "SourceSpec",
+    "clean_uci_transactions",
     "drop_non_product_lines",
     "load_uci_excel",
     "transaction_contract",
@@ -203,6 +204,54 @@ def drop_non_product_lines(
     return transactions.loc[~mask].reset_index(drop=True), {
         str(k): int(v) for k, v in removed.items()
     }
+
+
+def clean_uci_transactions(
+    transactions: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    """Remove ledger adjustments that are not sales.
+
+    The raw extract fails its own contract, and the two failures turn out to be
+    the same fault seen twice. Inspecting the 6,163 zero-price rows and the 3,457
+    negative-quantity-without-cancellation rows shows they are inventory
+    adjustments, not transactions: every one of the negative-quantity rows also
+    carries a zero price and no customer id, and the descriptions are stockroom
+    notes — ``CHECK``, ``DAMAGED``, ``DAMAGES``, ``?``, ``MISSING``,
+    ``FOUND``, ``THROWN AWAY``.
+
+    Keeping them would feed a demand model a write-off of 240 units as if
+    customers had returned them, which is reading a stockroom ledger as customer
+    behaviour. Dropping them silently would be worse, so the counts come back to
+    the caller and the ingest records them.
+
+    **Cancellations are kept.** A ``C``-prefixed invoice with a negative quantity
+    and a real price is a genuine return by a real customer, and
+    :func:`~prismprice.data.augment.to_daily_demand` nets it off rather than
+    discarding it — a return is real information about demand, and dropping it
+    inflates the series.
+
+    Args:
+        transactions: Normalised extract.
+
+    Returns:
+        ``(clean, removed)`` where ``removed`` counts each rule that fired.
+    """
+    counts: dict[str, int] = {}
+
+    priced = transactions["unit_price"] > 0
+    counts["zero_or_negative_price"] = int((~priced).sum())
+    clean = transactions.loc[priced]
+
+    is_return = clean["is_return"] if "is_return" in clean.columns else False
+    stray_negative = (clean["quantity"] < 0) & (~is_return)
+    counts["negative_quantity_without_cancellation"] = int(stray_negative.sum())
+    clean = clean.loc[~stray_negative]
+
+    missing_key = clean["invoice_id"].isna() | clean["sku"].isna() | clean["invoice_ts"].isna()
+    counts["null_primary_key_or_timestamp"] = int(missing_key.sum())
+    clean = clean.loc[~missing_key]
+
+    return clean.reset_index(drop=True), counts
 
 
 def file_digest(path: str | Path, algorithm: str = "sha256") -> str:

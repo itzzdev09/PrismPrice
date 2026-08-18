@@ -99,6 +99,20 @@ _UCI_ALIASES: dict[str, tuple[str, ...]] = {
 _UCI_REQUIRED = ("invoice_id", "sku", "quantity", "invoice_ts", "unit_price")
 
 
+def _as_identifier(values: pd.Series) -> pd.Series:
+    """Render an id column as a string without inventing a decimal point.
+
+    Identifiers routinely arrive as floats because one null in the column forces
+    pandas to float64 on read. ``astype(str)`` then turns 13085 into "13085.0",
+    which joins to nothing. Whole-valued numbers are rendered as integers and
+    nulls stay null; anything genuinely non-numeric is left as-is.
+    """
+    if pd.api.types.is_numeric_dtype(values):
+        numeric = pd.to_numeric(values, errors="coerce")
+        return numeric.astype("Int64").astype("string")
+    return values.astype("string")
+
+
 def normalise_uci(raw: pd.DataFrame) -> pd.DataFrame:
     """Rename and type a raw UCI extract to match the transaction contract.
 
@@ -123,12 +137,24 @@ def normalise_uci(raw: pd.DataFrame) -> pd.DataFrame:
         )
 
     df = raw.rename(columns=resolved).copy()
-    df["invoice_id"] = df["invoice_id"].astype("string")
-    df["sku"] = df["sku"].astype("string")
+    # Invoice ids arrive mixed: ordinary invoices parse as integers and
+    # cancellations do not ("C489449"), so the column is object dtype and a
+    # plain astype leaves the numbers rendered as ints and the cancellations as
+    # strings in the same column.
+    df["invoice_id"] = _as_identifier(df["invoice_id"])
+    df["sku"] = _as_identifier(df["sku"])
     df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").astype("Int64")
     df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce").astype(float)
     df["invoice_ts"] = pd.to_datetime(df["invoice_ts"], errors="coerce", utc=True)
-    for optional in ("customer_id", "description", "country"):
+
+    # Customer ids are stored as floats in the UCI workbooks, so a naive cast
+    # produces "13085.0". That is not merely untidy: it will not join to any
+    # other rendering of the same id, and a retention layer keyed on it would
+    # silently match nothing.
+    df["customer_id"] = (
+        _as_identifier(df["customer_id"]) if "customer_id" in df.columns else pd.NA
+    )
+    for optional in ("description", "country"):
         df[optional] = df[optional].astype("string") if optional in df.columns else pd.NA
 
     df["line_number"] = df.groupby("invoice_id").cumcount().astype("int64")

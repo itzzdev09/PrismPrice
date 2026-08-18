@@ -139,7 +139,9 @@ def test_daily_panel_aggregates_transactions(db, transactions):
     assert rows > 0
 
     panel = db.daily_panel()
-    assert set(panel.columns) == {"sku", "date", "units", "revenue", "price", "n_invoices"}
+    assert set(panel.columns) == {
+        "sku", "date", "units", "revenue", "price", "list_price", "n_invoices"
+    }
     assert (panel["units"] > 0).all()
     assert (panel["price"] > 0).all()
 
@@ -160,9 +162,40 @@ def test_panel_price_is_quantity_weighted(db):
     )
     db.ingest(frame, transaction_contract(), source="weighted")
     db.rebuild_daily_demand()
-    price = float(db.daily_panel().iloc[0]["price"])
-    assert price == pytest.approx((100 * 10.0 + 1 * 100.0) / 101)
-    assert price < 15.0, "an unweighted mean would report 55.0 here"
+    row = db.daily_panel().iloc[0]
+    assert float(row["price"]) == pytest.approx((100 * 10.0 + 1 * 100.0) / 101)
+    assert float(row["price"]) < 15.0, "an unweighted mean would report 55.0 here"
+
+
+def test_list_price_is_the_undiscounted_price(db):
+    """The treatment variable for elasticity, kept separate from realised price.
+
+    This retailer runs a volume-discount ladder: within one SKU-day, log unit
+    price and log line quantity correlate -0.67 across 88.7% of SKU-days. So the
+    quantity-weighted price falls mechanically whenever a large order lands, and
+    demand regressed on it recovers the discount schedule wearing the sign of an
+    elasticity. The list price is what a small order pays, and switching to it
+    cuts that mechanical correlation from -0.47 to -0.15 on the real data.
+    """
+    frame = pd.DataFrame(
+        {
+            "invoice_id": ["A", "B"],
+            "sku": ["S1", "S1"],
+            "line_number": [0, 0],
+            "quantity": [100, 1],
+            "unit_price": [10.0, 12.0],
+            "invoice_ts": [datetime(2024, 1, 1, 9, tzinfo=timezone.utc)] * 2,
+            "customer_id": ["c1", "c2"],
+        }
+    )
+    db.ingest(frame, transaction_contract(), source="list")
+    db.rebuild_daily_demand()
+    row = db.daily_panel().iloc[0]
+    assert float(row["list_price"]) == pytest.approx(12.0)
+    assert float(row["price"]) < float(row["list_price"]), (
+        "the bulk order must drag realised price below list, which is exactly "
+        "the contamination list_price exists to avoid"
+    )
 
 
 def test_panel_as_of_is_strictly_before(db, transactions):
