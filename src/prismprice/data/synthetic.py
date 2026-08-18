@@ -312,9 +312,11 @@ def generate_panel(
     skus = tuple(f"SKU-{i:03d}" for i in range(n_skus))
 
     alpha = rng.normal(3.5, 0.5, n_skus)
-    beta = np.clip(rng.normal(
-        config.SYNTHETIC_ELASTICITY_MEAN, config.SYNTHETIC_ELASTICITY_SD, n_skus
-    ), None, -0.4)
+    beta = np.clip(
+        rng.normal(config.SYNTHETIC_ELASTICITY_MEAN, config.SYNTHETIC_ELASTICITY_SD, n_skus),
+        None,
+        -0.4,
+    )
 
     eta = rng.uniform(0.0, cross_price_strength, (n_skus, n_skus))
     np.fill_diagonal(eta, 0.0)

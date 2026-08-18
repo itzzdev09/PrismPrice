@@ -298,8 +298,7 @@ DEFAULT_CVAR_WEIGHT_GAMMA: Final[float] = register(
         ),
         owner="Head of pricing / commercial strategy",
         elicitation=(
-            "How much expected contribution would you give up to cut the worst-5% outcome "
-            "by 1.00?"
+            "How much expected contribution would you give up to cut the worst-5% outcome by 1.00?"
         ),
         sensitivity=(0.0, 1.0),
         requires_local_elicitation=True,

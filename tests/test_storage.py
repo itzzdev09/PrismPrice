@@ -75,9 +75,7 @@ def test_inspection_mode_still_writes_nothing(db, transactions):
     """``quarantine_on_failure=False`` is for looking, not for forcing through."""
     broken = transactions.copy()
     broken.loc[broken.index[:5], "unit_price"] = -1.0
-    result = db.ingest(
-        broken, transaction_contract(), source="broken", quarantine_on_failure=False
-    )
+    result = db.ingest(broken, transaction_contract(), source="broken", quarantine_on_failure=False)
     assert not result.report.passed
     assert result.rows_written == 0
     assert db.summary()["transactions"] == 0
@@ -140,7 +138,13 @@ def test_daily_panel_aggregates_transactions(db, transactions):
 
     panel = db.daily_panel()
     assert set(panel.columns) == {
-        "sku", "date", "units", "revenue", "price", "list_price", "n_invoices"
+        "sku",
+        "date",
+        "units",
+        "revenue",
+        "price",
+        "list_price",
+        "n_invoices",
     }
     assert (panel["units"] > 0).all()
     assert (panel["price"] > 0).all()
@@ -298,13 +302,29 @@ def test_source_spec_states_size_and_licence_before_download():
     [
         (
             "online-retail-2011",
-            ["InvoiceNo", "StockCode", "Description", "Quantity",
-             "InvoiceDate", "UnitPrice", "CustomerID", "Country"],
+            [
+                "InvoiceNo",
+                "StockCode",
+                "Description",
+                "Quantity",
+                "InvoiceDate",
+                "UnitPrice",
+                "CustomerID",
+                "Country",
+            ],
         ),
         (
             "online-retail-II",
-            ["Invoice", "StockCode", "Description", "Quantity",
-             "InvoiceDate", "Price", "Customer ID", "Country"],
+            [
+                "Invoice",
+                "StockCode",
+                "Description",
+                "Quantity",
+                "InvoiceDate",
+                "Price",
+                "Customer ID",
+                "Country",
+            ],
         ),
     ],
 )
@@ -327,8 +347,16 @@ def test_normalise_names_the_columns_it_could_not_find():
     from prismprice.data.augment import normalise_uci
 
     with pytest.raises(ValueError, match="unit_price"):
-        normalise_uci(pd.DataFrame({"Invoice": ["A"], "StockCode": ["X"],
-                                    "Quantity": [1], "InvoiceDate": ["2010-01-01"]}))
+        normalise_uci(
+            pd.DataFrame(
+                {
+                    "Invoice": ["A"],
+                    "StockCode": ["X"],
+                    "Quantity": [1],
+                    "InvoiceDate": ["2010-01-01"],
+                }
+            )
+        )
 
 
 def test_guest_checkouts_keep_a_null_customer_id():
@@ -338,8 +366,16 @@ def test_guest_checkouts_keep_a_null_customer_id():
 
     raw = pd.DataFrame(
         [["A1", "85123A", "MUG", 6, "2010-12-01 08:26:00", 2.55, None, "UK"]],
-        columns=["Invoice", "StockCode", "Description", "Quantity",
-                 "InvoiceDate", "Price", "Customer ID", "Country"],
+        columns=[
+            "Invoice",
+            "StockCode",
+            "Description",
+            "Quantity",
+            "InvoiceDate",
+            "Price",
+            "Customer ID",
+            "Country",
+        ],
     )
     assert pd.isna(normalise_uci(raw).loc[0, "customer_id"])
 
@@ -349,8 +385,16 @@ def test_cancellations_are_flagged_as_returns():
 
     raw = pd.DataFrame(
         [["C536379", "85123A", "MUG", -6, "2010-12-01 08:26:00", 2.55, "17850", "UK"]],
-        columns=["Invoice", "StockCode", "Description", "Quantity",
-                 "InvoiceDate", "Price", "Customer ID", "Country"],
+        columns=[
+            "Invoice",
+            "StockCode",
+            "Description",
+            "Quantity",
+            "InvoiceDate",
+            "Price",
+            "Customer ID",
+            "Country",
+        ],
     )
     assert bool(normalise_uci(raw).loc[0, "is_return"])
 

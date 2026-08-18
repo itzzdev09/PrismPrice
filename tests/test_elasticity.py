@@ -171,15 +171,14 @@ def test_matches_econml_reference_on_identical_folds():
 
     panel = generate_panel(n_skus=3, n_days=400, seed=7)
     frame = panel.daily[panel.daily["sku"] == "SKU-000"].sort_values("date")
-    confounders = frame[
-        ["season_yearly", "is_weekend", "marketing_spend", "holiday"]
-    ].to_numpy(float)
+    confounders = frame[["season_yearly", "is_weekend", "marketing_spend", "holiday"]].to_numpy(
+        float
+    )
     treatment = np.log(frame["price"].to_numpy(float))
     response = np.log(frame["units_uncensored"].to_numpy(float))
 
     folds = [
-        (train.tolist(), test.tolist())
-        for train, test in temporal_folds(len(treatment), 5, 3, 0)
+        (train.tolist(), test.tolist()) for train, test in temporal_folds(len(treatment), 5, 3, 0)
     ]
 
     def learner():
@@ -379,9 +378,7 @@ def test_category_price_control_leaves_the_sku_out():
 def test_category_price_control_is_nan_for_a_single_sku_day():
     import pandas as pd
 
-    frame = pd.DataFrame(
-        {"sku": ["A"], "date": pd.to_datetime(["2024-01-01"]), "price": [10.0]}
-    )
+    frame = pd.DataFrame({"sku": ["A"], "date": pd.to_datetime(["2024-01-01"]), "price": [10.0]})
     assert np.isnan(add_category_price_control(frame).loc[0, "category_log_price"])
 
 
@@ -437,9 +434,7 @@ def test_estimate_serialises_for_the_decision_record(fitted):
 def test_naive_ols_handles_degenerate_series():
     import pandas as pd
 
-    frame = pd.DataFrame(
-        {"sku": ["A", "A"], "price": [10.0, 10.0], "units": [5.0, 6.0]}
-    )
+    frame = pd.DataFrame({"sku": ["A", "A"], "price": [10.0, 10.0], "units": [5.0, 6.0]})
     assert np.isnan(naive_ols_elasticity(frame)["A"])
 
 
@@ -483,9 +478,18 @@ def test_lightgbm_backend_support_is_probed_not_assumed():
 
 def test_estimate_ci_width_and_containment():
     estimate = ElasticityEstimate(
-        sku="A", point=-1.8, ci_low=-2.0, ci_high=-1.6, std_error=0.1,
-        method="m", confidence="high", reason="r", n_observations=100,
-        n_dropped=0, residual_price_sd=0.1, price_variation_explained=0.2,
+        sku="A",
+        point=-1.8,
+        ci_low=-2.0,
+        ci_high=-1.6,
+        std_error=0.1,
+        method="m",
+        confidence="high",
+        reason="r",
+        n_observations=100,
+        n_dropped=0,
+        residual_price_sd=0.1,
+        price_variation_explained=0.2,
     )
     assert estimate.ci_width == pytest.approx(0.4)
     assert estimate.contains(-1.9)

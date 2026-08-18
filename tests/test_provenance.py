@@ -81,7 +81,9 @@ def test_registered_values_match_the_exported_constants():
     reg = registry()
     for name, value in _public_config_constants().items():
         if name in reg:
-            assert reg[name].value == value, f"{name}: record says {reg[name].value}, config says {value}"
+            assert reg[name].value == value, (
+                f"{name}: record says {reg[name].value}, config says {value}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -136,9 +138,7 @@ def test_policy_without_a_sensitivity_bracket_is_rejected():
 def test_measured_values_are_rejected_in_configuration():
     """An estimate belongs in a model artefact; a hand-typed one is a placeholder."""
     with pytest.raises(ProvenanceError, match="belong in model artefacts"):
-        Parameter(
-            name="X", value=-1.8, provenance=Provenance.MEASURED, rationale="fitted it once"
-        )
+        Parameter(name="X", value=-1.8, provenance=Provenance.MEASURED, rationale="fitted it once")
 
 
 def test_every_parameter_needs_a_rationale():
@@ -255,9 +255,7 @@ def test_frontier_scores_every_point():
 
 
 def test_frontier_refuses_a_parameter_with_no_bracket():
-    param = Parameter(
-        name="X", value=1.0, provenance=Provenance.TECHNICAL, rationale="technical"
-    )
+    param = Parameter(name="X", value=1.0, provenance=Provenance.TECHNICAL, rationale="technical")
     with pytest.raises(ValueError, match="no sensitivity bracket"):
         frontier(param, score=lambda v: v)
 

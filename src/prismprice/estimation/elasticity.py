@@ -233,8 +233,7 @@ def temporal_folds(
         train = all_rows[mask]
         if train.size == 0:
             raise ValueError(
-                f"purge={purge} leaves fold {i} with no training rows; "
-                f"reduce purge or n_folds"
+                f"purge={purge} leaves fold {i} with no training rows; reduce purge or n_folds"
             )
         folds.append((train, test))
 
@@ -367,7 +366,10 @@ class DoubleMLElasticity:
 
         if not prepared:
             return self._unidentified(
-                "__pooled__", self.METHOD + "-pooled", total_rows, total_dropped,
+                "__pooled__",
+                self.METHOD + "-pooled",
+                total_rows,
+                total_dropped,
                 "no SKU had enough usable rows to pool",
             )
 
@@ -391,14 +393,15 @@ class DoubleMLElasticity:
             psi = t_all * (y_all - theta * t_all)
             jacobian = float(np.mean(t_all**2))
             per_repeat_theta.append(theta)
-            per_repeat_variance.append(
-                float(np.mean(psi**2)) / (jacobian**2) / t_all.shape[0]
-            )
+            per_repeat_variance.append(float(np.mean(psi**2)) / (jacobian**2) / t_all.shape[0])
             residual_sds.append(float(np.std(t_all)))
 
         if not per_repeat_theta:
             return self._unidentified(
-                "__pooled__", self.METHOD + "-pooled", total_rows, total_dropped,
+                "__pooled__",
+                self.METHOD + "-pooled",
+                total_rows,
+                total_dropped,
                 "no residual price variation after partialling out confounders",
             )
 
@@ -478,7 +481,9 @@ class DoubleMLElasticity:
         # price) would silently poison the nuisance fit, so it is mean-filled and
         # the fill is visible here rather than buried in the learner.
         if not np.all(np.isfinite(confounders)):
-            column_means = np.nanmean(np.where(np.isfinite(confounders), confounders, np.nan), axis=0)
+            column_means = np.nanmean(
+                np.where(np.isfinite(confounders), confounders, np.nan), axis=0
+            )
             column_means = np.where(np.isfinite(column_means), column_means, 0.0)
             confounders = np.where(np.isfinite(confounders), confounders, column_means)
 
@@ -501,7 +506,10 @@ class DoubleMLElasticity:
                 ).sum()
             )
             return self._unidentified(
-                sku, method, usable_rows, len(frame) - usable_rows,
+                sku,
+                method,
+                usable_rows,
+                len(frame) - usable_rows,
                 f"only {usable_rows} usable rows for {self.n_folds}-fold cross-fitting",
             )
         confounders, treatment, response, n, n_dropped = fields
@@ -531,9 +539,7 @@ class DoubleMLElasticity:
 
         for repeat in range(max(1, self.n_repeats)):
             offset = int(repeat * n / (self.n_folds * max(1, self.n_repeats)))
-            t_res, y_res = self._cross_fitted_residuals(
-                confounders, treatment, response, offset
-            )
+            t_res, y_res = self._cross_fitted_residuals(confounders, treatment, response, offset)
             fold_denominator = float(np.sum(t_res**2))
             if fold_denominator <= 0:
                 continue
@@ -547,7 +553,10 @@ class DoubleMLElasticity:
         treatment_var = float(np.var(treatment))
         if not thetas:
             return self._unidentified(
-                sku, method, n, n_dropped,
+                sku,
+                method,
+                n,
+                n_dropped,
                 "no residual price variation after partialling out confounders",
             )
 
@@ -560,7 +569,10 @@ class DoubleMLElasticity:
 
         if residual_price_sd < self.min_residual_price_sd:
             return self._unidentified(
-                sku, method, n, n_dropped,
+                sku,
+                method,
+                n,
+                n_dropped,
                 f"residual log-price SD {residual_price_sd:.4f} is below the identification "
                 f"floor {self.min_residual_price_sd:.4f}",
                 residual_price_sd=residual_price_sd,
@@ -699,9 +711,7 @@ class DoubleMLElasticity:
                 f"price movement, so the elasticity is not identified from this data"
             )
         if ci_width > self.max_ci_width:
-            return "low", (
-                f"interval width {ci_width:.3f} exceeds tau_max {self.max_ci_width:.3f}"
-            )
+            return "low", (f"interval width {ci_width:.3f} exceeds tau_max {self.max_ci_width:.3f}")
         if theta >= 0:
             return "low", (
                 f"estimated elasticity {theta:.3f} is non-negative, which contradicts "

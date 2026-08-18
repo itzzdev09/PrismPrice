@@ -151,9 +151,7 @@ def normalise_uci(raw: pd.DataFrame) -> pd.DataFrame:
     # produces "13085.0". That is not merely untidy: it will not join to any
     # other rendering of the same id, and a retention layer keyed on it would
     # silently match nothing.
-    df["customer_id"] = (
-        _as_identifier(df["customer_id"]) if "customer_id" in df.columns else pd.NA
-    )
+    df["customer_id"] = _as_identifier(df["customer_id"]) if "customer_id" in df.columns else pd.NA
     for optional in ("description", "country"):
         df[optional] = df[optional].astype("string") if optional in df.columns else pd.NA
 

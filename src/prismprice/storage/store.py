@@ -231,8 +231,16 @@ class PriceStore:
             "is_return": False,
         }
         columns = [
-            "invoice_id", "sku", "line_number", "quantity", "unit_price",
-            "invoice_ts", "customer_id", "country", "description", "is_return",
+            "invoice_id",
+            "sku",
+            "line_number",
+            "quantity",
+            "unit_price",
+            "invoice_ts",
+            "customer_id",
+            "country",
+            "description",
+            "is_return",
         ]
         staged = frame.copy()
         for column in columns:
@@ -365,10 +373,7 @@ class PriceStore:
                 with four observations cannot support an elasticity, and letting
                 it through produces a confident number from nothing.
         """
-        query = (
-            "SELECT sku, date, units, revenue, price, list_price, n_invoices "
-            "FROM daily_demand"
-        )
+        query = "SELECT sku, date, units, revenue, price, list_price, n_invoices FROM daily_demand"
         clauses: list[str] = []
         params: list[Any] = []
 
@@ -403,9 +408,7 @@ class PriceStore:
         ``supersedes_id`` (architecture.md §2).
         """
         decision_id = record["decision_id"]
-        if self._scalar(
-            "SELECT count(*) FROM decisions WHERE decision_id = ?", [decision_id]
-        ):
+        if self._scalar("SELECT count(*) FROM decisions WHERE decision_id = ?", [decision_id]):
             raise ValueError(
                 f"decision {decision_id} already recorded; decisions are immutable, "
                 f"supersede it with a new record instead"
@@ -440,8 +443,7 @@ class PriceStore:
             "transactions": self._scalar("SELECT count(*) FROM transactions"),
             "skus": self._scalar("SELECT count(DISTINCT sku) FROM transactions"),
             "customers": self._scalar(
-                "SELECT count(DISTINCT customer_id) FROM transactions "
-                "WHERE customer_id IS NOT NULL"
+                "SELECT count(DISTINCT customer_id) FROM transactions WHERE customer_id IS NOT NULL"
             ),
             "daily_rows": self._scalar("SELECT count(*) FROM daily_demand"),
             "batches": self._scalar("SELECT count(*) FROM ingest_batches"),

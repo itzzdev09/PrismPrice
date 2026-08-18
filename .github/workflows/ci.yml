@@ -34,9 +34,16 @@ jobs:
           cache: pip
 
       - name: Install
+        # The modelling extra is required, not optional, for CI: most of the
+        # test suite imports numpy/pandas/lightgbm/duckdb. Installing only
+        # ".[dev]" collects the tests and then fails every one of them at import,
+        # which reads as a catastrophic regression rather than a missing
+        # dependency. The GPU wheels are deliberately not installed — runners
+        # have no GPU, PRISMPRICE_ALLOW_CPU covers the torch requirement, and
+        # LightGBM's CPU fallback is now a warning by design.
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,modelling]"
 
       - name: Lint
         run: ruff check src tests

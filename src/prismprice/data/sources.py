@@ -103,9 +103,21 @@ _COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
 #: they are removed before modelling rather than left to distort a category mean.
 _NON_PRODUCT_CODES = frozenset(
     {
-        "POST", "DOT", "C2", "M", "BANK CHARGES", "AMAZONFEE", "B",
-        "CRUK", "PADS", "S", "gift_0001_10", "gift_0001_20",
-        "gift_0001_30", "gift_0001_40", "gift_0001_50",
+        "POST",
+        "DOT",
+        "C2",
+        "M",
+        "BANK CHARGES",
+        "AMAZONFEE",
+        "B",
+        "CRUK",
+        "PADS",
+        "S",
+        "gift_0001_10",
+        "gift_0001_20",
+        "gift_0001_30",
+        "gift_0001_40",
+        "gift_0001_50",
     }
 )
 
