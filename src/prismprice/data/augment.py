@@ -41,7 +41,7 @@ class AssumptionSet:
     """
 
     seed: int
-    margin_range: tuple[float, float] = (0.40, 0.55)
+    margin_range: tuple[float, float] = config.SYNTHETIC_MARGIN_RANGE
     competitor_mean_ratio: float = 1.02
     competitor_sd: float = 0.04
     competitor_observation_rate: float = 0.6

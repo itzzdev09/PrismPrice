@@ -47,6 +47,14 @@ jobs:
       - name: Type check
         run: mypy
 
+      - name: Parameter provenance audit
+        # Fails if any constant that can change a recommended price has no
+        # source. Run separately from pytest so the failure names itself in the
+        # job list rather than arriving as one red test among hundreds.
+        run: |
+          python -c "from prismprice.provenance import require_sourced_decision_path as g; g(); print('provenance: all decision-path parameters sourced')"
+          python -c "from prismprice.provenance import describe; print(describe())"
+
       - name: Test
         # Deeper Hypothesis search than the local default (2,000 examples per
         # property rather than 1,000). Kept at a number CI can actually finish;

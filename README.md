@@ -14,7 +14,7 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ## 0. Status
 
-This document specifies the full system. **Three and a half layers of it are built.** The table says which, so you can tell the design from the code before you clone it.
+This document specifies the full system. **Three and a half layers of it are built**, plus the parameter-provenance layer that binds them. The table says which, so you can tell the design from the code before you clone it.
 
 | Layer | Status | What exists |
 | --- | --- | --- |
@@ -26,6 +26,7 @@ This document specifies the full system. **Three and a half layers of it are bui
 | L5 Learning | ⚪ Spec only | Experiments, safe bandits, OPE |
 | L6 Serving | ⚪ Spec only | FastAPI service, batch scoring, price feed |
 | L7 Observability | ⚪ Spec only | KPI definitions in [docs/metrics.md](docs/metrics.md) |
+| **Cross-cutting: parameter provenance** | 🟢 **Built & tested** | Every decision-path constant carries a source (literature / policy / technical), objective weights λ and γ solved from stated trades rather than chosen, sensitivity brackets on every policy dial, CI fails on an unsourced constant — see §8.2 |
 
 225 tests, property-based where the guarantee is universal and scored against known ground truth where it is statistical. Everything marked *spec only* is a design that has been thought through and written down, not code that runs. The roadmap in §9 is the build order.
 
@@ -349,29 +350,73 @@ prismprice/
 
 Dependencies are split into extras — `modelling`, `serving`, `dashboards`, `ops`, `dev` — so installing the governance layer does not pull three gigabytes of CUDA wheels.
 
-### 8.1 GPU-only compute policy
+### 8.1 GPU compute policy
 
-**All model training and batch inference runs on GPU.** Silent CPU fallback is prohibited and enforced in code, not by convention:
+**Model training and batch inference run on GPU wherever the library supports it, and the device actually used is recorded either way.** The policy is enforced per library, because "does this machine have a GPU" and "was this library built to use it" are different questions with different fixes.
 
 ```python
-from prismprice.compute import require_gpu
+from prismprice.compute import require_gpu, lightgbm_device_params
 
-device = require_gpu("estimation.elasticity")   # raises GPUUnavailableError on CPU
+device = require_gpu("estimation.retention")            # torch: raises on CPU
+params = lightgbm_device_params("estimation.demand")    # boosting: best available, loudly
 ```
 
-Two reasons this is a hard failure rather than a warning:
+**Torch-backed components require CUDA.** Survival CLV, the embedding encoder, Monte-Carlo simulation and policy learning raise `GPUUnavailableError` rather than degrading. These are the workloads where a GPU is worth multiples of wall-clock time, and torch ships a CUDA build, so the requirement is one an operator can actually satisfy.
 
-1. **Reproducibility is a stated guarantee.** Determinism (README §5) means same inputs + same model versions + same seed ⇒ same output. Kernels and reduction orders differ between CPU and GPU, so a run that quietly switches device can no longer be reconstructed against the artefacts named in its own decision log.
-2. **Silent degradation hides itself.** LightGBM warns and trains on CPU when its GPU build is missing; a nightly catalogue refresh then takes 40× longer and blows its window with nothing in the logs but a warning nobody reads. `lightgbm_device_params()` calls `require_gpu()` first, converting that into the same hard failure everything else gets.
+**Gradient-boosting components use CUDA when the installed build provides it**, and otherwise train on CPU with a `RuntimeWarning` naming the specific reason. This is not a reproducibility hole: CPU histogram training is deterministic, `deterministic` and `force_row_wise` are set on both paths, and the device is written into the artefact — so the record still says what produced the number.
 
-`gpu_report()` distinguishes the three failure modes that otherwise look identical — torch missing, torch built without CUDA, CUDA present but no visible device — because each needs a different fix.
+> **This was previously a blanket GPU-only rule, and it was wrong in a way worth recording.** `lightgbm_device_params()` asked *PyTorch* whether CUDA was available and then handed `device_type: cuda` to *LightGBM* — a separate library with its own build. Stock PyPI LightGBM wheels ship **without** the CUDA tree learner, so on a machine with a working CUDA PyTorch that combination fails at training time with `CUDA Tree Learner was not enabled in this build`. The bug was invisible only because a CPU-only PyTorch was masking it: *repairing the PyTorch install was what would have broken the demand model.* A blanket policy that can only be satisfied by setting the escape hatch on every machine is not a policy, it is a warning nobody reads.
 
-The single escape hatch is `PRISMPRICE_ALLOW_CPU=1`, for CI runners and the pure-Python governance tests. It emits a `RuntimeWarning` naming the component and stating that results are not reproducible against GPU-trained artefacts. It is set in CI ([ci.yml](.github/workflows/ci.yml)) and should never be set on a machine that produces prices.
+`compute_report()` returns the machine and each backend separately, because a green device with a red backend is precisely the state that used to be reported as "GPU enabled":
+
+```jsonc
+{
+  "device":   { "available": true,  "device_name": "NVIDIA GeForce RTX 3060 Laptop GPU", "cuda_version": "12.8" },
+  "backends": {
+    "lightgbm": { "available": false, "reason": "LightGBM 4.6.0 was not built with CUDA support ..." },
+    "xgboost":  { "available": true,  "reason": "XGBoost CUDA available" }
+  }
+}
+```
+
+`gpu_report()` still distinguishes the three device-level failure modes that otherwise look identical — torch missing, torch built without CUDA, CUDA present but no visible device — because each needs a different fix.
+
+The escape hatch `PRISMPRICE_ALLOW_CPU=1` downgrades the torch requirement to a warning, for CI runners and the pure-Python governance tests. It is set in [ci.yml](.github/workflows/ci.yml) and should never be set on a machine that produces prices.
 
 > **Install note.** The default PyPI `torch` wheel is CPU-only and will fail `require_gpu()`. Install from the CUDA index:
 > ```bash
-> pip install torch --index-url https://download.pytorch.org/whl/cu124
+> pip install --upgrade --index-url https://download.pytorch.org/whl/cu128 torch
 > ```
+> LightGBM has no CUDA wheel on PyPI at all; GPU support there requires a source build with `-DUSE_CUDA=1`, and at panel sizes in the low millions of rows CPU histogram training is usually faster anyway.
+
+---
+
+### 8.2 Parameter provenance
+
+Every constant that can change a recommended price carries a record saying where it came from, declared in [`config.py`](src/prismprice/config.py) through [`provenance.register`](src/prismprice/provenance.py). CI fails if any decision-path constant is unsourced.
+
+The problem this solves is that a bare float is unfalsifiable — `0.15` looks identical whether it was elicited from a category owner or typed to make a test pass. Five kinds are kept apart:
+
+| Kind | Meaning | Record must include |
+| --- | --- | --- |
+| `LITERATURE` | From published research | A citation specific enough to check |
+| `POLICY` | A business preference | Owner, the **trade** it encodes, and a sensitivity bracket |
+| `TECHNICAL` | Forced by a machine or statistical constraint | The constraint |
+| `PLACEHOLDER` | Unsourced | Permitted outside the decision path; a CI failure inside it |
+| `MEASURED` | An estimate | **Rejected in configuration** — estimates belong in model artefacts |
+
+**The objective weights are solved, not chosen.** $\lambda$ and $\gamma$ were described in §2 as the dials that define a good price and existed nowhere in code. Neither can be estimated at any sample size, because both are exchange rates between things the business values differently. So each is derived from a stated trade:
+
+```python
+DEFAULT_CLV_WEIGHT_LAMBDA = lambda_from_tradeoff(margin_sacrificed=0.30, clv_gained=1.00)
+```
+
+Nobody has a calibrated intuition for "λ = 0.30", but a category owner can answer *"how much margin today would you give up for 1.00 of modelled future customer value?"* — and an answer well below 1.0 is itself information: it prices trust in the CLV model, not only commercial strategy. Every `POLICY` value ships with a sensitivity bracket rather than as a point estimate, and `frontier()` sweeps it, because a dial whose bracket does not change the recommendation is not load-bearing and one whose bracket flips it must be elicited locally.
+
+**Generator priors are quarantined from the decision path.** The synthetic elasticity prior $eta \sim \mathcal{N}(-1.8, 0.4)$ sits essentially on the Tellis (1988) meta-analytic mean of −1.76 and is deliberately conservative against the larger Bijmolt et al. (2005) mean of −2.62 over 1,851 elasticities from 81 studies. A smaller true elasticity is the harder test, since it is easier for a naive estimator to confuse with confounding.
+
+**One parameter is labelled unsourced, on purpose.** The repurchase-hazard sensitivity $	heta = -1.2$ is invented. The obvious literature to reach for is loss aversion, whose meta-analytic asymmetry coefficient sits nearer 1.25–1.45 than the folk value of 2 — but that describes the relative weight of losses and gains in a choice utility, which is a *different quantity* from a proportional hazard multiplier on repurchase timing. Citing it would be false precision. It is identifiable from real repurchase panels and is scheduled for estimation in phase 4; until then it reads `PLACEHOLDER` and prints `<-- UNSOURCED` in `describe()`.
+
 
 ---
 
@@ -387,6 +432,7 @@ Governance (phase 6) was built first, out of order, for the reason given in §0.
 | **6 Governance** | 🟢 done | All 9 guardrails, reason codes, audit contracts | Property tests prove guardrails never violated |
 | **1 Data & Features** | 🟢 done | Contracts, quality gates, synthetic truth, un-censoring, cold-start priors, leakage tests | Quality report generated; leakage test passes; un-censoring beats the naive series on known truth |
 | **2 Demand** | 🟢 done | Quantile demand model + conformal calibration | Rolling-origin p10/p90 interval coverage within ±3pp |
+| **P Provenance** | 🟢 done | Sourced constants, objective weights lambda/gamma, per-library GPU probe | CI audit finds no unsourced decision-path constant |
 | **3 Causal Elasticity** | ⚪ next | DML implementation controlling for confounders | Recovers known true elasticity on synthetic data |
 | **4 Retention** | ⚪ | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
 | **5 Decision** | ⚪ | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
@@ -401,9 +447,11 @@ Validating each model against **synthetic data with known ground truth** before 
 
 Stated plainly, because a buyer or reviewer will find them anyway and the credibility is worth more than the claim.
 
+- **No database exists, and no real data has run through the system.** `duckdb` is an optional dependency that is imported nowhere; the storage row in §8 is intent. `normalise_uci()` takes a dataframe the caller supplies — there is no downloader and no cached extract — so every measured figure in this README (un-censoring recovery, interval coverage) is measured against the synthetic generator, whose ground truth we chose ourselves.
 - **Most of this is specification, not code.** See §0. The objective function, the estimators and the serving layer are designed and documented; they are not written. Treat every present-tense description of L0–L3 and L5–L7 as intent.
 - **Unobserved Confounders.** While Double Machine Learning handles observed confounders (seasonality, promo flags) better than raw regression, unrecorded variables (e.g., a competitor running an un-tracked radio ad) will still bias elasticity estimates.
 - **The public UCI dataset has no cost, inventory, or competitor columns.** Margin requires an assumed cost model, and those assumptions are declared in [docs/data-and-modelling.md](docs/data-and-modelling.md), not buried.
+- **The policy dials are repo defaults, not this business's answers.** Margin floor, movement cap, competitor ceiling, lambda and gamma are all `POLICY` values carrying `requires_local_elicitation=True`. They are defensible starting points with the trade they encode written down; they are not elicited from any real operator, and running them unchanged means accepting someone else's commercial preferences.
 - **$\Delta\text{CLV}$ is a modelled quantity**, sensitive to the discount rate and horizon. Both are explicit configuration, and the dashboards show sensitivity bands rather than a single number.
 - **Fairness here means non-discrimination in price setting.** `PP-G009` proves the decision context is identity-free; it does not prove outcomes are equitable. It is not a full algorithmic-fairness audit, and its proxy denylist is a judgement call, not a legal standard.
 - **The inventory guard is only as good as $\nu$.** With no shadow price supplied it degrades to the absolute floor, and says so in its own detail string rather than pretending to bind.

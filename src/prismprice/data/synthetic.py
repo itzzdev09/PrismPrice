@@ -312,7 +312,9 @@ def generate_panel(
     skus = tuple(f"SKU-{i:03d}" for i in range(n_skus))
 
     alpha = rng.normal(3.5, 0.5, n_skus)
-    beta = np.clip(rng.normal(-1.8, 0.4, n_skus), None, -0.4)
+    beta = np.clip(rng.normal(
+        config.SYNTHETIC_ELASTICITY_MEAN, config.SYNTHETIC_ELASTICITY_SD, n_skus
+    ), None, -0.4)
 
     eta = rng.uniform(0.0, cross_price_strength, (n_skus, n_skus))
     np.fill_diagonal(eta, 0.0)
@@ -322,7 +324,7 @@ def generate_panel(
     gamma = rng.normal(0.25, 0.15, (n_skus, len(confounder_names)))
 
     base_price = rng.uniform(12.0, 60.0, n_skus)
-    margin = rng.uniform(0.40, 0.55, n_skus)
+    margin = rng.uniform(*config.SYNTHETIC_MARGIN_RANGE, n_skus)
     unit_cost = base_price * (1.0 - margin)
 
     prices, promo = _build_prices(confounders, base_price, rng, confounding_strength)
@@ -423,7 +425,7 @@ def generate_panel(
         skus,
         rng,
         n_customers,
-        theta=-1.2,
+        theta=config.SYNTHETIC_REFERENCE_PRICE_HAZARD_THETA,
         weibull_shape=1.4,
         weibull_scale_days=45.0,
     )
@@ -435,7 +437,7 @@ def generate_panel(
         eta=eta,
         gamma=gamma,
         confounder_names=confounder_names,
-        theta=-1.2,
+        theta=config.SYNTHETIC_REFERENCE_PRICE_HAZARD_THETA,
         weibull_shape=1.4,
         weibull_scale_days=45.0,
         unit_cost=unit_cost,

@@ -2,7 +2,7 @@
 
 Engineering detail behind the [README](../README.md). This is the document to read before writing code in any layer.
 
-> **Status.** §3 (data contracts), §4.1 (features) and §4.7 (governance) describe code that exists. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
+> **Status.** §3 (data contracts), §4.1 (features), §4.2 (demand) and §4.7 (governance) describe code that exists. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
 
 ---
 
@@ -14,7 +14,8 @@ Engineering detail behind the [README](../README.md). This is the document to re
 4. **Guardrails are not model outputs.** They are hard constraints applied after scoring, so a model bug or wild inference cannot produce an illegal price.
 5. **Fail visible, never silent.** Degrade to a simpler decision level and explicitly log the reason code; never emit a confident number from broken inputs.
 6. **Validate on known ground truth first.** Every estimator is proven on synthetic data where the true causal parameter is known before it touches real data.
-7. **The device is part of the contract.** All model training and inference runs on GPU, enforced by `prismprice.compute.require_gpu()`. Silent CPU fallback would break principle 3: kernels and reduction orders differ across devices, so a CPU-trained artefact cannot reproduce the number its decision record claims. See [README §8.1](../README.md#81-gpu-only-compute-policy).
+7. **The device is part of the contract.** Training and inference run on GPU wherever the library supports it, and the device actually used is recorded either way. The probe is *per library*: torch-backed components (`require_gpu()`) raise rather than degrade, while gradient boosting uses CUDA only when the installed build provides it and otherwise falls back on CPU with a warning naming the reason. Asking one library whether another can use the GPU is how the previous version of this rule produced a latent crash — see [README §8.1](../README.md#81-gpu-compute-policy).
+8. **Every number that can move a price says where it came from.** Constants are declared through `provenance.register()` with a source kind, and CI fails on an unsourced constant in the decision path. Policy dials carry the trade they encode and a sensitivity bracket; the objective weights are solved from a stated trade rather than chosen. See [README §8.2](../README.md#82-parameter-provenance).
 
 ---
 
@@ -89,10 +90,12 @@ checks:
 
 ---
 
-### 4.2 Demand model (`estimation/demand.py`) — ⚪ spec only
+### 4.2 Demand model (`estimation/demand.py`) — 🟢 built
 
 - **Output:** quantiles `{p10, p50, p90}` of units at candidate price $\mathbf{p}$ and context.
-- **Method:** LightGBM quantile regression with monotonic constraints (decreasing in price).
+- **Method:** LightGBM quantile regression, conformalised (CQR) on a held-out temporal slice so the 80% interval is honest out of sample, with per-tail calibration.
+- **Why LightGBM:** the estimator answers *how many units at this candidate price*; it does not choose the price. On tabular panel data with mixed categoricals it remains the strong default, and its native pinball loss yields the conditional quantiles L3 samples. It is explicitly **not** the elasticity model: a booster fitted on logged prices learns the historical pricing *policy*, not the causal demand curve, which is what §4.3 exists for.
+- **Monotonicity:** LightGBM rejects `monotone_constraints` under the quantile objective outright, so demand is made non-increasing in price by isotonic projection across the candidate ladder — exact where the property actually matters.
 - **Validation:** rolling-origin backtest; empirical coverage of p10/p90 within $\pm 3\text{pp}$ of nominal.
 
 ---
