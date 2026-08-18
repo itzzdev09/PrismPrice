@@ -14,17 +14,17 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ## 0. Status
 
-This document specifies the full system. **Three and a half layers of it are built**, plus the parameter-provenance layer that binds them. The table says which, so you can tell the design from the code before you clone it.
+This document specifies the full system. **Seven of its eight layers are built**, plus the parameter-provenance layer that binds them. Only the learning layer (L5: experiments, safe bandits, off-policy evaluation) remains specification. The table says which, so you can tell the design from the code before you clone it.
 
 | Layer | Status | What exists |
 | --- | --- | --- |
 | **L0 Data foundation** | 🟢 **Built & tested** | Schema contracts with 12 quality-gate codes, quarantine on failure, synthetic panel generator with known ground truth, deterministic UCI augmentation with a declared assumption set |
 | **L1 Features** | 🟢 **Built & tested** | Point-in-time feature assembly with a proven leakage guarantee, right-censored Tobit demand un-censoring (removes 78% of censoring error on synthetic truth), cold-start elasticity priors from embedding neighbours |
 | **L4 Governance** | 🟢 **Built & tested** | All 9 guardrails, reason codes, structured verdicts, ladder feasibility filtering, degradation rungs 1/2/4, immutable decision-record contract |
-| L2 Estimation | 🟡 Partial | **Demand model built**: LightGBM quantile regression, conformalised so the 80% interval is honest out of sample (0.782–0.825 coverage). **Causal elasticity built**: cross-fitted partially-linear DML recovering known synthetic $eta$ inside its CI on 94.4% of SKUs and cutting elasticity error 83% versus naive regression; verified against `econml.LinearDML` to 6 decimal places. Survival CLV and competitor game are not built |
-| L3 Decision | 🟡 Partial | Feasibility filtering and the fallback path are built; the objective, ladder generation and Monte-Carlo simulation are not |
+| L2 Estimation | 🟢 **Built & tested** | **Demand model built**: LightGBM quantile regression, conformalised so the 80% interval is honest out of sample (0.782–0.825 coverage). **Causal elasticity built**: cross-fitted partially-linear DML recovering known synthetic $eta$ inside its CI on 94.4% of SKUs and cutting elasticity error 83% versus naive regression; verified against `econml.LinearDML` to 6 decimal places. **Retention built**: Cox repurchase hazard fitted on GPU, recovering the generator's known theta (mean -1.18 vs true -1.20), with Delta-CLV and a sensitivity grid. Competitor game is not built |
+| L3 Decision | 🟢 **Built & tested** | Objective J(p) with lambda/gamma weights, candidate ladder snapped to publishable endings, Monte-Carlo simulation with common random numbers, CVaR shortfall, guardrail filtering and the immutable decision record. Category backtest beats cost-plus by 33.3% and competitor-match by 14.8% |
 | L5 Learning | ⚪ Spec only | Experiments, safe bandits, OPE |
-| L6 Serving | ⚪ Spec only | FastAPI service, batch scoring, price feed |
+| L6 Serving | 🟢 **Built & tested** | FastAPI `/decide`, `/decide/batch`, `/health`; degradation rungs 1/2/4/5 exercised end to end; chaos test kills the model store and degrades to `CRITICAL_MAINTAIN_PREV` |
 | L7 Observability | ⚪ Spec only | KPI definitions in [docs/metrics.md](docs/metrics.md) |
 | **Cross-cutting: parameter provenance** | 🟢 **Built & tested** | Every decision-path constant carries a source (literature / policy / technical), objective weights λ and γ solved from stated trades rather than chosen, sensitivity brackets on every policy dial, CI fails on an unsourced constant — see §8.2 |
 
@@ -434,10 +434,10 @@ Governance (phase 6) was built first, out of order, for the reason given in §0.
 | **2 Demand** | 🟢 done | Quantile demand model + conformal calibration | Rolling-origin p10/p90 interval coverage within ±3pp |
 | **P Provenance** | 🟢 done | Sourced constants, objective weights lambda/gamma, per-library GPU probe | CI audit finds no unsourced decision-path constant |
 | **3 Causal Elasticity** | 🟢 done | Cross-fitted DML, temporal folds, repeated aggregation, confidence tagging | Recovers known true elasticity within CI on 94.4% of SKUs |
-| **4 Retention** | ⚪ next | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
-| **5 Decision** | ⚪ | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
-| **7 Serving** | ⚪ | API + batch + degradation matrix | Contract tests + chaos test on model outage |
-| **8 Learning** | ⚪ | Safe bandits, OPE | OPE recovers known policy value on synthetic data |
+| **4 Retention** | 🟢 done | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
+| **5 Decision** | 🟢 done | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
+| **7 Serving** | 🟢 done | API + batch + degradation matrix | Contract tests + chaos test on model outage |
+| **8 Learning** | ⚪ next | Safe bandits, OPE | OPE recovers known policy value on synthetic data |
 
 Validating each model against **synthetic data with known ground truth** before trusting it on real data is what separates this from a project that merely produces plausible numbers.
 
