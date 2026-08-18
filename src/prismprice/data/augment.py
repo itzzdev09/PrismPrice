@@ -78,37 +78,58 @@ class AssumptionSet:
         )
 
 
-#: UCI column names mapped onto the transaction contract.
-_UCI_RENAMES = {
-    "InvoiceNo": "invoice_id",
-    "StockCode": "sku",
-    "Description": "description",
-    "Quantity": "quantity",
-    "InvoiceDate": "invoice_ts",
-    "UnitPrice": "unit_price",
-    "CustomerID": "customer_id",
-    "Country": "country",
+#: Column aliases across the two UCI releases. The 2011 "Online Retail" set and
+#: the 2009-2011 "Online Retail II" set carry the same fields under different
+#: names (``InvoiceNo``/``Invoice``, ``UnitPrice``/``Price``,
+#: ``CustomerID``/``Customer ID``). Code that handles only one fails silently on
+#: the other — the rename is a no-op and the missing-column error names a field
+#: the user can see in their file.
+_UCI_ALIASES: dict[str, tuple[str, ...]] = {
+    "invoice_id": ("Invoice", "InvoiceNo"),
+    "sku": ("StockCode",),
+    "description": ("Description",),
+    "quantity": ("Quantity",),
+    "invoice_ts": ("InvoiceDate",),
+    "unit_price": ("Price", "UnitPrice"),
+    "customer_id": ("Customer ID", "CustomerID"),
+    "country": ("Country",),
 }
+
+#: Fields without which a transaction cannot be validated at all.
+_UCI_REQUIRED = ("invoice_id", "sku", "quantity", "invoice_ts", "unit_price")
 
 
 def normalise_uci(raw: pd.DataFrame) -> pd.DataFrame:
     """Rename and type a raw UCI extract to match the transaction contract.
 
+    Accepts either UCI release; see :data:`_UCI_ALIASES`.
+
     Guest checkouts keep a null ``customer_id``. Collapsing them to a sentinel
     would create one synthetic mega-customer and corrupt every retention curve
     downstream, so they stay null and the retention layer excludes them.
     """
-    missing = set(_UCI_RENAMES) - set(raw.columns)
-    if missing:
-        raise ValueError(f"Raw UCI extract is missing columns: {sorted(missing)}")
+    resolved: dict[str, str] = {}
+    for canonical, aliases in _UCI_ALIASES.items():
+        for alias in aliases:
+            if alias in raw.columns:
+                resolved[alias] = canonical
+                break
 
-    df = raw.rename(columns=_UCI_RENAMES).copy()
+    missing = [c for c in _UCI_REQUIRED if c not in resolved.values()]
+    if missing:
+        raise ValueError(
+            f"Raw UCI extract is missing required columns {missing}. "
+            f"Saw columns: {sorted(map(str, raw.columns))}"
+        )
+
+    df = raw.rename(columns=resolved).copy()
     df["invoice_id"] = df["invoice_id"].astype("string")
     df["sku"] = df["sku"].astype("string")
     df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").astype("Int64")
     df["unit_price"] = pd.to_numeric(df["unit_price"], errors="coerce").astype(float)
     df["invoice_ts"] = pd.to_datetime(df["invoice_ts"], errors="coerce", utc=True)
-    df["customer_id"] = df["customer_id"].astype("string")
+    for optional in ("customer_id", "description", "country"):
+        df[optional] = df[optional].astype("string") if optional in df.columns else pd.NA
 
     df["line_number"] = df.groupby("invoice_id").cumcount().astype("int64")
     df["is_return"] = df["invoice_id"].str.startswith("C", na=False)
