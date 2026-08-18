@@ -2,7 +2,7 @@
 
 Engineering detail behind the [README](../README.md). This is the document to read before writing code in any layer.
 
-> **Status.** §3 (data contracts), §4.1 (features), §4.2 (demand) and §4.7 (governance) describe code that exists. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
+> **Status.** §3 (data contracts), §4.1 (features), §4.2 (demand), §4.3 (causal elasticity) and §4.7 (governance) describe code that exists. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
 
 ---
 
@@ -100,13 +100,24 @@ checks:
 
 ---
 
-### 4.3 Causal Elasticity model (`estimation/elasticity.py`) — ⚪ spec only
+### 4.3 Causal Elasticity model (`estimation/elasticity.py`) — 🟢 built
 
-- **Output:** `{point, ci_low, ci_high, method, confidence}` per SKU.
-- **Method:** Double Machine Learning (DML) / Orthogonal R-Learner (via `EconML`).
-  - Stage 1: Partial out confounders (seasonality, marketing spend, promo depth) from treatment (price) and outcome (log demand).
-  - Stage 2: Fit non-parametric treatment effect on residuals to isolate true causal price elasticity.
-- **Confidence tag:** `high` when genuine experimental or uncorrelated price variation exists; `low` when purely observational or CI width exceeds threshold $\tau_{\max}$.
+- **Output:** `{point, ci_low, ci_high, std_error, method, confidence, reason}` per SKU.
+- **Method:** cross-fitted partially-linear DML (Robinson 1988; Chernozhukov et al. 2018). Stage 1 partials the confounders out of both treatment ($\log p$) and outcome ($\log q$) with boosted trees; stage 2 regresses residual on residual. The coefficient *is* the elasticity.
+- **Result:** recovers known synthetic $eta$ inside the 95% CI on **94.4%** of SKUs (worst seed 92.0%, five seeds × 25 SKUs), mean bias $-0.014$, RMSE $0.094$. Naive uncontrolled regression on the same panels has RMSE $0.563$ — DML removes **83%** of the error.
+- **Confidence tag:** `high` requires residual price variation above an identification floor *and* CI width within $	au_{\max}$ *and* a negative point estimate. Anything else is `low` and degrades to the pooled category elasticity (rung 3).
+
+**Four specification corrections, each measured rather than argued.**
+
+**Cross-fitting is temporal, not random.** The spec said EconML, whose DML estimators cross-fit on a random K-fold. Marketing spend is AR(1) and demand is serially correlated, so a random fold puts day $t-1$ in train and day $t$ in test and the nuisance model predicts the test day by remembering its neighbour. Folds are contiguous time blocks with a purge margin.
+
+**Implemented directly, and verified against EconML rather than delegated to it.** The confidence tag needs the first-stage residuals — if $X$ explains nearly all price variation the estimator is dividing by almost zero and the honest output is "not identified", not a number with a wide interval. EconML does not expose those stably, and the tag drives a degradation rung, so it is a governance requirement. `tests/test_elasticity.py` fits `econml.dml.LinearDML` on identical folds and asserts agreement; the two match to **6 decimal places**.
+
+**The interval needed repeated cross-fitting, and the obvious diagnosis was wrong.** Single-split DML produced estimates scattering **1.38×** wider than their own standard errors, so a nominal 95% interval covered 83%. Serial correlation was the obvious suspect; adding a Newey-West kernel moved the standard error by **4%** and ruled it out. An oracle fit that *knows* the true nuisance functions lands at 0.080 against a nominal 0.086 — so the gap is nuisance-estimation error, which the asymptotic formula omits by construction. Repeating over independent partitions and folding the between-split spread into the variance (Chernozhukov et al. §3.4) recovers 0.944. The HAC kernel is kept because it is correct, not because it helped.
+
+**Pooling pools residuals, not rows.** Stacking every SKU into one fit with SKU identity as a feature returned $-0.82$ on a panel whose true mean elasticity was $-1.99$: SKUs differ in baseline volume and base price, and a boosted tree cannot absorb that from an integer code the way a fixed effect would. Each SKU is residualised against its own nuisance models and the pooled moment is taken over stacked residuals.
+
+**Category price is a control, not a nicety.** Substitutes share buyers, so a rival SKU's discount moves this SKU's demand; omitted, that lands in the error term and widens the scatter without widening the interval. `add_category_price_control()` adds the leave-one-out mean log price of the rest of the category — a control a retailer genuinely observes. It moved coverage 0.832 → 0.880 on its own.
 
 ---
 

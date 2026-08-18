@@ -21,7 +21,7 @@ This document specifies the full system. **Three and a half layers of it are bui
 | **L0 Data foundation** | 🟢 **Built & tested** | Schema contracts with 12 quality-gate codes, quarantine on failure, synthetic panel generator with known ground truth, deterministic UCI augmentation with a declared assumption set |
 | **L1 Features** | 🟢 **Built & tested** | Point-in-time feature assembly with a proven leakage guarantee, right-censored Tobit demand un-censoring (removes 78% of censoring error on synthetic truth), cold-start elasticity priors from embedding neighbours |
 | **L4 Governance** | 🟢 **Built & tested** | All 9 guardrails, reason codes, structured verdicts, ladder feasibility filtering, degradation rungs 1/2/4, immutable decision-record contract |
-| L2 Estimation | 🟡 Partial | **Demand model built**: LightGBM quantile regression, conformalised so the 80% interval is honest out of sample (0.782–0.825 coverage on rolling-origin backtests across five seeds), monotone in price by isotonic projection. Causal elasticity, survival CLV and competitor game are not built |
+| L2 Estimation | 🟡 Partial | **Demand model built**: LightGBM quantile regression, conformalised so the 80% interval is honest out of sample (0.782–0.825 coverage). **Causal elasticity built**: cross-fitted partially-linear DML recovering known synthetic $eta$ inside its CI on 94.4% of SKUs and cutting elasticity error 83% versus naive regression; verified against `econml.LinearDML` to 6 decimal places. Survival CLV and competitor game are not built |
 | L3 Decision | 🟡 Partial | Feasibility filtering and the fallback path are built; the objective, ladder generation and Monte-Carlo simulation are not |
 | L5 Learning | ⚪ Spec only | Experiments, safe bandits, OPE |
 | L6 Serving | ⚪ Spec only | FastAPI service, batch scoring, price feed |
@@ -433,8 +433,8 @@ Governance (phase 6) was built first, out of order, for the reason given in §0.
 | **1 Data & Features** | 🟢 done | Contracts, quality gates, synthetic truth, un-censoring, cold-start priors, leakage tests | Quality report generated; leakage test passes; un-censoring beats the naive series on known truth |
 | **2 Demand** | 🟢 done | Quantile demand model + conformal calibration | Rolling-origin p10/p90 interval coverage within ±3pp |
 | **P Provenance** | 🟢 done | Sourced constants, objective weights lambda/gamma, per-library GPU probe | CI audit finds no unsourced decision-path constant |
-| **3 Causal Elasticity** | ⚪ next | DML implementation controlling for confounders | Recovers known true elasticity on synthetic data |
-| **4 Retention** | ⚪ | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
+| **3 Causal Elasticity** | 🟢 done | Cross-fitted DML, temporal folds, repeated aggregation, confidence tagging | Recovers known true elasticity within CI on 94.4% of SKUs |
+| **4 Retention** | ⚪ next | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
 | **5 Decision** | ⚪ | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
 | **7 Serving** | ⚪ | API + batch + degradation matrix | Contract tests + chaos test on model outage |
 | **8 Learning** | ⚪ | Safe bandits, OPE | OPE recovers known policy value on synthetic data |
