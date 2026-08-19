@@ -14,7 +14,7 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ## 0. Status
 
-This document specifies the full system. **Seven of its eight layers are built**, plus the parameter-provenance layer that binds them. Only the learning layer (L5: experiments, safe bandits, off-policy evaluation) remains specification. The table says which, so you can tell the design from the code before you clone it.
+This document specifies the full system. **All eight layers are built**, plus the parameter-provenance layer that binds them. What remains is depth rather than scaffolding — the competitor game model, the sequential markdown MDP, and the observability layer. The table says which, so you can tell the design from the code before you clone it.
 
 | Layer | Status | What exists |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ This document specifies the full system. **Seven of its eight layers are built**
 | **L4 Governance** | 🟢 **Built & tested** | All 9 guardrails, reason codes, structured verdicts, ladder feasibility filtering, degradation rungs 1/2/4, immutable decision-record contract |
 | L2 Estimation | 🟢 **Built & tested** | **Demand model built**: LightGBM quantile regression, conformalised so the 80% interval is honest out of sample (0.782–0.825 coverage). **Causal elasticity built**: cross-fitted partially-linear DML recovering known synthetic $eta$ inside its CI on 94.4% of SKUs and cutting elasticity error 83% versus naive regression; verified against `econml.LinearDML` to 6 decimal places. **Retention built**: Cox repurchase hazard fitted on GPU, recovering the generator's known theta (mean -1.18 vs true -1.20), with Delta-CLV and a sensitivity grid. Competitor game is not built |
 | L3 Decision | 🟢 **Built & tested** | Objective J(p) with lambda/gamma weights, candidate ladder snapped to publishable endings, Monte-Carlo simulation with common random numbers, CVaR shortfall, guardrail filtering and the immutable decision record. Category backtest beats cost-plus by 33.3% and competitor-match by 14.8% |
-| L5 Learning | ⚪ Spec only | Experiments, safe bandits, OPE |
+| L5 Learning | 🟢 **Built & tested** | Switchback and geo-split assignment with recorded propensities, safe contextual bandit bounded by a pessimistic value floor and a cumulative risk budget, and IPS / SNIPS / doubly-robust off-policy evaluation that recovers a known policy value from synthetic logs |
 | L6 Serving | 🟢 **Built & tested** | FastAPI `/decide`, `/decide/batch`, `/health`; degradation rungs 1/2/4/5 exercised end to end; chaos test kills the model store and degrades to `CRITICAL_MAINTAIN_PREV` |
 | L7 Observability | ⚪ Spec only | KPI definitions in [docs/metrics.md](docs/metrics.md) |
 | **Cross-cutting: parameter provenance** | 🟢 **Built & tested** | Every decision-path constant carries a source (literature / policy / technical), objective weights λ and γ solved from stated trades rather than chosen, sensitivity brackets on every policy dial, CI fails on an unsourced constant — see §8.2 |
@@ -437,7 +437,7 @@ Governance (phase 6) was built first, out of order, for the reason given in §0.
 | **4 Retention** | 🟢 done | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
 | **5 Decision** | 🟢 done | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
 | **7 Serving** | 🟢 done | API + batch + degradation matrix | Contract tests + chaos test on model outage |
-| **8 Learning** | ⚪ next | Safe bandits, OPE | OPE recovers known policy value on synthetic data |
+| **8 Learning** | 🟢 done | Safe bandits, OPE, designed experiments | OPE recovers known policy value on synthetic data |
 
 Validating each model against **synthetic data with known ground truth** before trusting it on real data is what separates this from a project that merely produces plausible numbers.
 
