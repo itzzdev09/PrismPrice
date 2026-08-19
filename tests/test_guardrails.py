@@ -8,7 +8,7 @@ implementation's arithmetic and checks the implementation agrees with it passes
 for any self-consistent code, including self-consistently wrong code.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from hypothesis import assume, given
@@ -541,3 +541,30 @@ def test_subclass_must_declare_code_and_name():
         class Broken(BaseGuardrail):
             def evaluate(self, candidate_price, request):  # pragma: no cover
                 raise NotImplementedError
+
+
+def test_holding_the_price_passes_with_non_negative_slack_when_overspent():
+    """Regression: PP-G006 returned PASSED with slack -1.0.
+
+    Found by Hypothesis at CI's 2,000-example depth, on a request whose change
+    window was already overspent (1 change made against a cap of 0) and whose
+    candidate equalled the current price. Holding consumes no change, so PASSED
+    is right; reporting the raw remaining budget as slack made the verdict and
+    the slack contradict each other, breaking the one convention every guardrail
+    shares — and doing it on exactly the path a system takes when it has run out
+    of permission to move.
+    """
+    request = PriceRequest(
+        sku="SKU-001",
+        as_of=datetime(2026, 8, 17, 2, tzinfo=timezone.utc),
+        current_price=30.0,
+        unit_cost=10.0,
+        price_changes_in_window=1,
+        max_changes_per_window=0,
+    )
+    results = GuardrailEngine().evaluate_candidate(30.0, request).results
+    frequency = next(r for r in results if r.reason_code is GuardrailCode.CHANGE_FREQUENCY)
+
+    assert frequency.status is GuardrailStatus.PASSED
+    assert frequency.slack >= 0.0
+    assert "overspent" in frequency.detail, "the exhausted budget must still be reported"

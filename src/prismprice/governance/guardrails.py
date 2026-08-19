@@ -281,12 +281,30 @@ class ChangeFrequencyGuardrail(BaseGuardrail):
             rel_tol=config.FLOAT_REL_TOL,
             abs_tol=config.FLOAT_ABS_TOL,
         ):
+            remaining = float(request.max_changes_per_window - request.price_changes_in_window)
+            # Holding the price consumes no change, so this constraint cannot be
+            # violated by this decision and the verdict is PASSED regardless of
+            # the budget. The slack must agree with that verdict.
+            #
+            # Reporting the raw remaining budget did not: with a window already
+            # overspent (1 change made against a cap of 0) it returned PASSED
+            # with slack -1.0, breaking the one convention every guardrail shares
+            # and, worse, breaking it on the single path a system takes when it
+            # has run out of permission to move. Hypothesis found this at CI's
+            # 2,000-example depth. The overspend is named in the detail rather
+            # than expressed as a slack that contradicts the status.
+            overspent = (
+                f" The window is already overspent by {-remaining:.0f} change(s), which "
+                f"constrains future moves but not this one."
+                if remaining < 0
+                else ""
+            )
             return self._verdict(
                 passed=True,
-                detail="Candidate equals the current price; no change is consumed",
+                detail=("Candidate equals the current price; no change is consumed." + overspent),
                 observed=float(request.price_changes_in_window),
                 limit=float(request.max_changes_per_window),
-                slack=float(request.max_changes_per_window - request.price_changes_in_window),
+                slack=max(remaining, 0.0),
             )
 
         prospective = request.price_changes_in_window + 1
