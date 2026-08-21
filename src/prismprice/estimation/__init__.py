@@ -2,6 +2,13 @@
 Estimation layer (L2): demand, causal elasticity, retention, competitor response.
 """
 
+from prismprice.estimation.competitor import (
+    EquilibriumAnalysis,
+    ReactionFunction,
+    estimate_reaction,
+    find_equilibrium,
+    simulate_price_path,
+)
 from prismprice.estimation.demand import (
     CalibrationReport,
     DemandForecast,
@@ -34,14 +41,19 @@ __all__ = [
     "DoubleMLElasticity",
     "ElasticityEstimate",
     "ElasticityScore",
+    "EquilibriumAnalysis",
     "QuantileDemandModel",
+    "ReactionFunction",
     "SurvivalFit",
     "add_category_price_control",
     "calibration_report",
     "clv_sensitivity",
+    "estimate_reaction",
+    "find_equilibrium",
     "naive_ols_elasticity",
     "price_shock",
     "rolling_origin_backtest",
     "score_against_truth",
+    "simulate_price_path",
     "temporal_folds",
 ]
