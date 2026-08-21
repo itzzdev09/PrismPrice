@@ -56,3 +56,6 @@ desktop.ini
 .coverage.*
 coverage.xml
 htmlcov/
+
+# Generated run artefacts (regenerate with prismprice.pipeline + dashboard)
+data/runs/preview_*
