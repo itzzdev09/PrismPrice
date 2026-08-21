@@ -200,9 +200,9 @@ def test_advantage_grows_with_demand_uncertainty():
         policy = solve_markdown(problem)
         static = best_static_price(problem)
         dp_result = simulate_policy(
-            problem, lambda t, i: policy.price_at(t, i), n_seasons=2500, seed=11
+            problem, lambda t, i, pol=policy: pol.price_at(t, i), n_seasons=2500, seed=11
         )
-        static_result = simulate_policy(problem, lambda t, i: static, n_seasons=2500, seed=11)
+        static_result = simulate_policy(problem, lambda t, i, p=static: p, n_seasons=2500, seed=11)
         lifts.append(dp_result["mean_profit"] / static_result["mean_profit"] - 1.0)
 
     assert lifts[1] > lifts[0], (
