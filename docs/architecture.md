@@ -2,7 +2,7 @@
 
 Engineering detail behind the [README](../README.md). This is the document to read before writing code in any layer.
 
-> **Status.** §3 (data contracts), §4.1 (features), §4.2 (demand), §4.3 (causal elasticity) and §4.7 (governance) describe code that exists. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
+> **Status.** Every component section now describes code that exists. §4.6b (sequential markdown) was not in the original specification and was added after the fact. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
 
 ---
 
@@ -131,10 +131,21 @@ checks:
 
 ---
 
-### 4.5 Competitor Game model (`estimation/competitor.py`) — ⚪ spec only
+### 4.5 Competitor Game model (`estimation/competitor.py`) — 🟢 built
 
-- **Output:** Predicted competitor price response function $\hat{p}_{\text{comp}}(p)$.
-- **Method:** Game-theoretic best-response estimator preventing automated downward spirals (price wars) by simulating multi-agent equilibrium bounds.
+- **Output:** fitted reaction $\hat{p}_{	ext{comp}}(p)$, plus the equilibrium and a price-war verdict.
+- **Method:** dynamic reaction function $p_{	ext{them}}(t) = lpha + eta p_{	ext{us}}(t-1) + \gamma p_{	ext{them}}(t-1) + oldsymbol{\delta}'X(t)$, and a best-response fixed point over both rules.
+- **Result:** recovers a known $eta = 0.45$ (mean 0.454 over 15 histories) and $\gamma = 0.40$.
+
+**War risk is judged on the long-run response $eta/(1-\gamma)$, not $eta$.** A competitor following 45% of a move immediately but holding 40% of their own price ends up following 75%; the headline figure would call a divergent pair stable.
+
+**The spiral coefficient** is $b \cdot d$, the product of the two reaction slopes. With our rule $p_{us} = a + b\,p_{them}$ and theirs $p_{them} = c + d\,p_{us}$, the fixed point $p^{*} = (a + bc)/(1 - bd)$ exists and is stable **iff** $|bd| < 1$. Banded as `DIVERGENT` / `FRAGILE` / `DAMPED` / `STABLE`, because the action differs by band.
+
+**A mathematically stable system can still be a price war.** With $b = 1.0$ and $d = 0.95$ the product is 0.95 and the dynamics damp — toward a fixed point at roughly $-80$. Both prices walk 30.00 → 28.00 → 22.60 → 17.47 → 12.60 → 12.00 and stop on the margin floor. `is_equilibrium` therefore requires three conditions: converged, stable, and **not resting on a bound**.
+
+**This is why §4.7 is not sufficient on its own.** `PP-G002` stops every individual price below the margin floor, and would stop it every day for a year while margin bled away above it. A constraint catches an illegal price; only a model of the other player catches a losing strategy.
+
+**Identification is the §4.3 problem in a different costume.** Two firms facing the same cost shock move together without either reacting, and a naive regression reads co-movement as reaction — biased *upward*, toward declaring a war that is not happening. `controls` exists for it; the inflation and its removal are both measured in the tests. Genuine identification needs price variation the competitor cannot anticipate, which is what §4.8 produces.
 
 ---
 
