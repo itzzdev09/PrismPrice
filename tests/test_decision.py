@@ -489,3 +489,55 @@ def test_baselines_reject_impossible_inputs():
         cost_plus_price(0.0)
     with pytest.raises(ValueError, match="competitor_price must be > 0"):
         competitor_match_price(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Price-ending bands
+# ---------------------------------------------------------------------------
+
+
+def test_a_flat_ending_rule_cannot_price_cheap_items():
+    """The defect real data exposed and the generator could not.
+
+    At GBP 1.25 with a 15% cap the window is [1.06, 1.44], and the nearest
+    .95/.99 endings are 0.99 and 1.95 — neither inside it. The feasible set is
+    empty and the price is held. On the real catalogue this put 145 of 443 SKUs
+    on rung 4, median held price GBP 1.63 against GBP 4.13 for those that
+    priced. Synthetic base prices were GBP 12-60, so it never appeared.
+    """
+    from prismprice.decision.ladder import generate_ladder
+
+    ladder = generate_ladder(1.25, movement_cap_pct=0.15, allowed_endings=(95, 99))
+    inside = [p for p in ladder if 1.25 * 0.85 <= p <= 1.25 * 1.15]
+    assert not inside, "this test is only meaningful while the flat rule fails here"
+
+
+@pytest.mark.parametrize("price", [0.39, 0.85, 1.25, 2.10, 3.75, 4.95, 8.50, 24.96])
+def test_banded_endings_always_leave_a_legal_candidate(price):
+    """The rule that has to hold: the ending grid must be finer than the
+    distance the movement cap lets the price travel."""
+    from prismprice.decision.ladder import endings_for_price, generate_ladder
+
+    ladder = generate_ladder(price, movement_cap_pct=0.15, allowed_endings=endings_for_price(price))
+    inside = [p for p in ladder if price * 0.85 <= p <= price * 1.15]
+    assert inside, f"no legal candidate within the movement cap at {price}"
+
+
+def test_bands_get_coarser_as_price_rises():
+    """Pennies matter on a GBP 1 item and are noise on a GBP 30 one."""
+    from prismprice.decision.ladder import endings_for_price
+
+    assert len(endings_for_price(0.50)) > len(endings_for_price(2.50))
+    assert len(endings_for_price(2.50)) > len(endings_for_price(20.0))
+    assert endings_for_price(20.0) == (95, 99)
+
+
+def test_one_ladder_uses_one_ending_policy():
+    """The band comes from the current price, not per candidate, so a ladder
+    spanning a band boundary does not mix two policies."""
+    from prismprice.decision.ladder import endings_for_price, generate_ladder
+
+    endings = endings_for_price(4.95)
+    ladder = generate_ladder(4.95, movement_cap_pct=0.20, allowed_endings=endings)
+    for price in ladder:
+        assert round(price * 100) % 100 in endings

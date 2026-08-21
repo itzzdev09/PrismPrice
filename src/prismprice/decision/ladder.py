@@ -31,6 +31,7 @@ import numpy as np
 from prismprice import config
 
 __all__ = [
+    "endings_for_price",
     "generate_ladder",
     "snap_to_ending",
 ]
@@ -63,6 +64,38 @@ def snap_to_ending(price: float, allowed_endings: tuple[int, ...] | None) -> flo
         return round(price, 2)
     # min() on (distance, value) breaks ties toward the lower price.
     return min(positive, key=lambda c: (abs(c - price), c))
+
+
+def endings_for_price(price: float) -> tuple[int, ...]:
+    """Permitted price endings for *price*, banded by magnitude.
+
+    A single ``.95/.99`` rule is a policy that quietly refuses to price cheap
+    items. At GBP 1.25 with a 15% movement cap the permitted window is
+    [1.06, 1.44] and the nearest allowed endings are 0.99 and 1.95 — **neither is
+    inside it**, so the feasible set is empty and the price is held. On the real
+    catalogue this put 145 of 443 SKUs on degradation rung 4, with a median held
+    price of GBP 1.63 against GBP 4.13 for the ones that priced. The synthetic
+    generator never showed it because its base prices were GBP 12-60.
+
+    The rule that actually has to hold is that the ending grid be finer than the
+    movement cap allows the price to travel: a +/-15% window at GBP 1 is 30p
+    wide, so endings 96p apart cannot land in it. Real retailers band for exactly
+    this reason — pennies and 49/99 at the low end, 95/99 further up — so the
+    bands here encode an existing practice rather than inventing one.
+
+    Args:
+        price: The current price, which selects the band. Chosen from the
+            current price rather than per candidate, so one ladder does not mix
+            two ending policies.
+
+    Returns:
+        Endings in whole cents, ascending.
+    """
+    if price < 1.00:
+        return (9, 19, 29, 39, 49, 59, 69, 79, 89, 99)
+    if price < 5.00:
+        return (25, 49, 75, 99)
+    return (95, 99)
 
 
 def generate_ladder(

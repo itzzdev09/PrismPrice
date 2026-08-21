@@ -1,0 +1,466 @@
+<title>PrismPrice Run Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#F5F6F8; --surface:#FFFFFF; --surface-2:#EEF1F3;
+    --ink:#14171C; --ink-2:#4A545F; --ink-3:#77848F;
+    --rule:rgba(15,110,106,.16); --rule-strong:rgba(15,110,106,.30);
+    --accent:#0F6E6A; --accent-soft:rgba(15,110,106,.10);
+    --ok:#146B3A; --warn:#A85B00; --stop:#A81F1F;
+    --ok-soft:rgba(20,107,58,.12); --warn-soft:rgba(168,91,0,.12); --stop-soft:rgba(168,31,31,.12);
+    --shadow:0 1px 2px rgba(20,23,28,.05),0 8px 24px rgba(20,23,28,.06);
+    --step--1:.78rem; --step-0:.95rem; --step-1:1.15rem; --step-2:1.6rem; --step-3:2.3rem; --step-4:3.1rem;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0E1116; --surface:#171B21; --surface-2:#1E242B;
+      --ink:#E8ECEF; --ink-2:#A3AFB9; --ink-3:#77848F;
+      --rule:rgba(93,201,193,.18); --rule-strong:rgba(93,201,193,.32);
+      --accent:#5DC9C1; --accent-soft:rgba(93,201,193,.12);
+      --ok:#4BBE7B; --warn:#E0913A; --stop:#E56B6B;
+      --ok-soft:rgba(75,190,123,.14); --warn-soft:rgba(224,145,58,.14); --stop-soft:rgba(229,107,107,.14);
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0E1116; --surface:#171B21; --surface-2:#1E242B;
+    --ink:#E8ECEF; --ink-2:#A3AFB9; --ink-3:#77848F;
+    --rule:rgba(93,201,193,.18); --rule-strong:rgba(93,201,193,.32);
+    --accent:#5DC9C1; --accent-soft:rgba(93,201,193,.12);
+    --ok:#4BBE7B; --warn:#E0913A; --stop:#E56B6B;
+    --ok-soft:rgba(75,190,123,.14); --warn-soft:rgba(224,145,58,.14); --stop-soft:rgba(229,107,107,.14);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+    font-size:var(--step-0); line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .num{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+  .wrap{max-width:1240px; margin:0 auto; padding:0 24px 96px}
+
+  /* ---- verdict bar ---- */
+  .verdict{position:sticky; top:0; z-index:50; background:var(--surface); border-bottom:1px solid var(--rule-strong)}
+  .verdict-in{max-width:1240px; margin:0 auto; padding:18px 24px; display:flex; align-items:center; gap:20px; flex-wrap:wrap}
+  .stamp{display:inline-flex; align-items:center; gap:10px; padding:8px 16px; border-radius:2px;
+    font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:var(--step--1); letter-spacing:.10em; text-transform:uppercase}
+  .stamp.stop{background:var(--stop-soft); color:var(--stop); box-shadow:inset 0 0 0 1px currentColor}
+  .stamp.go{background:var(--ok-soft); color:var(--ok); box-shadow:inset 0 0 0 1px currentColor}
+  .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+  .verdict h1{font-family:"Newsreader",Georgia,serif; font-weight:600; font-size:var(--step-1); margin:0; letter-spacing:-.01em}
+  .verdict .meta{color:var(--ink-3); font-size:var(--step--1); margin-left:auto; display:flex; gap:18px; align-items:center}
+  .toggle{background:none;border:1px solid var(--rule-strong);color:var(--ink-2);border-radius:2px;
+    padding:6px 12px;font:inherit;font-size:var(--step--1);cursor:pointer}
+  .toggle:hover{border-color:var(--accent); color:var(--accent)}
+  .toggle:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  /* ---- headings ---- */
+  h2{font-family:"Newsreader",Georgia,serif; font-weight:600; font-size:var(--step-2);
+     margin:56px 0 6px; letter-spacing:-.015em; text-wrap:balance}
+  h2:first-of-type{margin-top:40px}
+  .sub{color:var(--ink-2); max-width:68ch; margin:0 0 22px; font-size:var(--step-0)}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:.68rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 4px}
+
+  /* ---- cards & grid ---- */
+  .grid{display:grid; gap:16px}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .card{background:var(--surface); border:1px solid var(--rule); border-radius:3px;
+    padding:20px; box-shadow:var(--shadow); position:relative; overflow:hidden}
+  .card.stripe::before{content:""; position:absolute; inset:0 auto 0 0; width:3px; background:var(--accent)}
+  .card.stripe.is-ok::before{background:var(--ok)}
+  .card.stripe.is-warn::before{background:var(--warn)}
+  .card.stripe.is-stop::before{background:var(--stop)}
+  .label{font-size:var(--step--1); color:var(--ink-2); display:block; margin-bottom:8px}
+  .figure{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums;
+    font-size:var(--step-3); font-weight:500; line-height:1.05; letter-spacing:-.02em}
+  .foot{font-size:var(--step--1); color:var(--ink-3); margin-top:8px}
+
+  /* ---- bars ---- */
+  .bars{display:flex; flex-direction:column; gap:10px; margin-top:4px}
+  .bar-row{display:grid; grid-template-columns:132px 1fr 68px; align-items:center; gap:12px;
+    background:none;border:0;padding:6px 4px;font:inherit;color:inherit;cursor:pointer;text-align:left;border-radius:2px}
+  .bar-row:hover{background:var(--accent-soft)}
+  .bar-row:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+  .bar-row[aria-pressed="true"]{background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--rule-strong)}
+  .bar-track{height:22px; background:var(--surface-2); border-radius:2px; overflow:hidden}
+  .bar-fill{height:100%; background:var(--accent); transition:width .35s cubic-bezier(.2,.7,.3,1)}
+  .bar-fill.is-warn{background:var(--warn)} .bar-fill.is-stop{background:var(--stop)}
+  .bar-row .k{font-size:var(--step--1); color:var(--ink-2)}
+  .bar-row .v{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; text-align:right; font-size:var(--step--1)}
+
+  /* ---- breakers ---- */
+  .breaker{display:flex; gap:14px; align-items:flex-start; padding:14px 0; border-top:1px solid var(--rule)}
+  .breaker:first-child{border-top:0}
+  .breaker .name{font-family:"IBM Plex Mono",monospace; font-size:var(--step--1); min-width:170px}
+  .pill{font-family:"IBM Plex Mono",monospace; font-size:.68rem; letter-spacing:.08em; padding:3px 9px;
+    border-radius:2px; text-transform:uppercase; font-weight:600; white-space:nowrap}
+  .pill.go{background:var(--ok-soft); color:var(--ok)} .pill.stop{background:var(--stop-soft); color:var(--stop)}
+  .pill.warn{background:var(--warn-soft); color:var(--warn)} .pill.mute{background:var(--surface-2); color:var(--ink-3)}
+  .breaker .why{color:var(--ink-2); font-size:var(--step--1)}
+
+  /* ---- confusion matrix ---- */
+  .cm{display:grid; grid-template-columns:auto repeat(2,1fr); gap:4px; margin-top:12px; max-width:380px}
+  .cm div{padding:14px 10px; text-align:center; border-radius:2px; font-family:"IBM Plex Mono",monospace;
+    font-variant-numeric:tabular-nums}
+  .cm .hd{background:none; color:var(--ink-3); font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; padding:6px}
+  .cm .cell{background:var(--surface-2); font-size:var(--step-1)}
+  .cm .cell.hit{background:var(--ok-soft); color:var(--ok)}
+  .cm .cell.miss{background:var(--stop-soft); color:var(--stop)}
+  .cm-legend{font-size:var(--step--1); color:var(--ink-3); margin-top:10px}
+
+  /* ---- filters + table ---- */
+  .filters{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:18px 0 14px}
+  .chip{background:var(--surface); border:1px solid var(--rule-strong); color:var(--ink-2); border-radius:2px;
+    padding:7px 13px; font:inherit; font-size:var(--step--1); cursor:pointer}
+  .chip:hover{border-color:var(--accent); color:var(--accent)}
+  .chip[aria-pressed="true"]{background:var(--accent); border-color:var(--accent); color:var(--surface)}
+  .chip:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  input[type=search]{background:var(--surface); border:1px solid var(--rule-strong); color:var(--ink);
+    border-radius:2px; padding:7px 12px; font:inherit; font-size:var(--step--1); min-width:200px}
+  input[type=search]:focus-visible{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent)}
+  .count{margin-left:auto; color:var(--ink-3); font-size:var(--step--1);
+    font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+
+  .tablewrap{overflow-x:auto; border:1px solid var(--rule); border-radius:3px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:var(--step--1)}
+  th{position:sticky; top:0; background:var(--surface-2); text-align:left; padding:11px 14px;
+    font-weight:600; font-size:.7rem; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-2);
+    cursor:pointer; white-space:nowrap; border-bottom:1px solid var(--rule-strong)}
+  th:hover{color:var(--accent)}
+  th[aria-sort]{color:var(--accent)}
+  td{padding:10px 14px; border-top:1px solid var(--rule); white-space:nowrap}
+  td.n{font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; text-align:right}
+  tbody tr:hover{background:var(--accent-soft)}
+  .up{color:var(--ok)} .down{color:var(--stop)} .flat{color:var(--ink-3)}
+  .empty{padding:44px; text-align:center; color:var(--ink-3)}
+
+  .caveats{margin-top:18px; padding:18px 20px; background:var(--surface-2); border-radius:3px;
+    border-left:3px solid var(--warn)}
+  .caveats ul{margin:8px 0 0; padding-left:20px; color:var(--ink-2); font-size:var(--step--1)}
+  .caveats li{margin:5px 0}
+  footer{margin-top:64px; padding-top:22px; border-top:1px solid var(--rule); color:var(--ink-3); font-size:var(--step--1)}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="verdict">
+  <div class="verdict-in">
+    <span id="stamp" class="stamp"><span class="dot"></span><span id="stampText"></span></span>
+    <h1>Pricing run review</h1>
+    <div class="meta">
+      <span class="num" id="asOf"></span>
+      <button class="toggle" id="themeBtn" type="button">Theme</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <p class="eyebrow" style="margin-top:36px">Batch state</p>
+  <h2 style="margin-top:0">Can this batch publish?</h2>
+  <p class="sub">The circuit breakers decide before anything else does. They catch faults that belong to the
+    batch rather than to any single price — every individual move can be legal and well scored while the run
+    as a whole is a catastrophe.</p>
+  <div class="card" id="breakers"></div>
+
+  <p class="eyebrow">Decision quality</p>
+  <h2 style="margin-top:0">Not just whether we answered</h2>
+  <p class="sub">A system that always returns a price hides its own degradation inside a healthy-looking
+    success rate. The rung histogram is what makes “we returned a price” and “we returned a good price”
+    different numbers. Click a rung to filter everything below.</p>
+  <div class="grid g2">
+    <div class="card"><span class="label">Degradation rungs</span><div class="bars" id="rungBars"></div></div>
+    <div class="card"><span class="label">Price movement</span><div class="bars" id="moveBars"></div>
+      <p class="foot" id="moveFoot"></p></div>
+  </div>
+
+  <div class="grid g4" id="tiles" style="margin-top:16px"></div>
+
+  <p class="eyebrow">Estimator health</p>
+  <h2 style="margin-top:0">Elasticity, and whether to believe it</h2>
+  <p class="sub">A positive estimated elasticity is almost always residual confounding rather than a Giffen
+    good, so the sign-violation rate is a diagnostic on the estimator — not a finding about buyers.</p>
+  <div class="grid g2">
+    <div class="card"><span class="label">Distribution across SKUs</span><div id="elasticHist" class="bars"></div></div>
+    <div class="card"><span class="label">Health checks</span><div id="elasticHealth"></div></div>
+  </div>
+
+  <p class="eyebrow">Model evaluation</p>
+  <h2 style="margin-top:0">Where a confusion matrix belongs</h2>
+  <p class="sub">Nothing in the pricing path emits a class label — demand is a quantile, elasticity a
+    continuous parameter, retention a hazard. Forcing a confusion matrix onto any of them would mean inventing
+    a threshold and scoring a distinction the model was never asked to make. The <em>circuit breaker</em> is a
+    real binary classifier, so it gets a real matrix: scored against batches whose status is known by
+    construction, with faults spanning subtle to obvious so the boundary is actually tested.</p>
+  <div class="grid g2">
+    <div class="card"><span class="label">Circuit breaker, on labelled batches</span>
+      <div class="cm" id="cm"></div><p class="cm-legend" id="cmLegend"></p></div>
+    <div class="card"><span class="label">Scores</span><div id="cmScores"></div></div>
+  </div>
+
+  <p class="eyebrow">Per-SKU detail</p>
+  <h2 style="margin-top:0">Every decision, with its reason</h2>
+  <p class="sub">Filters here and the rung bars above are the same filter — the useful question is rarely
+    “what is the median” but “what does it look like among the ones that degraded”.</p>
+  <div class="filters">
+    <button class="chip" data-conf="high" type="button">Elasticity trusted</button>
+    <button class="chip" data-conf="low" type="button">Elasticity not trusted</button>
+    <button class="chip" data-dir="up" type="button">Price up</button>
+    <button class="chip" data-dir="down" type="button">Price down</button>
+    <button class="chip" id="clear" type="button">Clear</button>
+    <input type="search" id="q" placeholder="Search SKU" aria-label="Search SKU">
+    <span class="count" id="count"></span>
+  </div>
+  <div class="tablewrap"><table>
+    <thead><tr>
+      <th data-k="sku">SKU</th>
+      <th data-k="current_price" class="n">Current</th>
+      <th data-k="recommended_price" class="n">Recommended</th>
+      <th data-k="price_change_pct" class="n">Change</th>
+      <th data-k="elasticity" class="n">Elasticity</th>
+      <th data-k="elasticity_confidence">Trust</th>
+      <th data-k="degradation_rung" class="n">Rung</th>
+      <th data-k="binding_constraints">Binding</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+
+  <div class="caveats">
+    <strong>What these numbers rest on</strong>
+    <ul id="notes"></ul>
+  </div>
+  <footer>Generated by <span class="num">prismprice.observability.dashboard</span> from one pipeline run.
+    Recommendations are decision support, not published prices.</footer>
+</div>
+
+<script>
+const DATA = {"summary": {"n_priced": 25, "n_panel_rows": 11498, "may_publish": false, "breakers": [{"name": "one_sided_movement", "status": "HALT", "observed": 0.32, "limit": 0.3, "detail": "32.0% of the catalogue went up (15 of 25 prices moved), above the 30% limit", "halted": true}, {"name": "aggregate_movement", "status": "PASS", "observed": 0.025607287449392724, "limit": 0.03, "detail": "basket moved +2.56%", "halted": false}, {"name": "no_guardrail_violations", "status": "PASS", "observed": 0.0, "limit": 0.0, "detail": "all 25 prices satisfy the margin floor", "halted": false}], "rung_counts": {"1": 15, "2": 0, "3": 0, "4": 10, "5": 0}, "degraded_share": 0.4, "median_change": 0.0, "share_up": 0.32, "share_down": 0.28, "elasticity": {"median": -0.40857769875457045, "p10": -0.9726144164804522, "p90": 0.2691875599304434, "n": 25, "usable": 15, "share_usable": 0.6, "health": {"n": 25, "n_declined": 0, "median": -0.40857769875457045, "sign_violation_rate": 0.32, "sign_violation_limit": 0.02, "sign_violations_breached": true, "median_ci_width": 0.8104599443790056, "ci_width_breached": false, "healthy": false}}, "classification": {"true_positive": 97, "false_positive": 0, "true_negative": 298, "false_negative": 5, "grid": [[298, 0], [5, 97]], "precision": 1.0, "recall": 0.9509803921568627, "specificity": 1.0, "f1": 0.9748743718592965, "accuracy": 0.9875, "balanced_accuracy": 0.9754901960784313, "accuracy_is_misleading": false}, "notes": ["unit_cost derived from an assumed 45% gross margin; no public retail dataset carries COGS", "elasticity fitted on list_price, not realised price, because realised price moves with order-size mix under this retailer's volume discounts"], "unobserved": ["marketing_spend", "competitor_price", "catalogue_placement"], "as_of": "2011-12-09T00:00:00+00:00"}, "decisions": [{"sku": "15036", "current_price": 1.63, "recommended_price": 1.63, "unit_cost": 0.9, "elasticity": -0.911623787562665, "elasticity_confidence": "high", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "15056BL", "current_price": 5.95, "recommended_price": 5.99, "unit_cost": 3.27, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 11.559043552440937, "expected_profit": 31.440598462639347, "price_change_pct": 0.006722689075630228}, {"sku": "15056N", "current_price": 5.95, "recommended_price": 5.99, "unit_cost": 3.27, "elasticity": -0.8127714920951559, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 12.93430867400332, "expected_profit": 35.18131959328903, "price_change_pct": 0.006722689075630228}, {"sku": "16237", "current_price": 0.42, "recommended_price": 0.42, "unit_cost": 0.23, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "17003", "current_price": 0.83, "recommended_price": 0.95, "unit_cost": 0.46, "elasticity": -0.5406981512317763, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 106.08988875575061, "expected_profit": 51.98404549031779, "price_change_pct": 0.14457831325301207}, {"sku": "20674", "current_price": 1.25, "recommended_price": 1.25, "unit_cost": 0.69, "elasticity": -1.0889163628608516, "elasticity_confidence": "high", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20675", "current_price": 2.46, "recommended_price": 2.46, "unit_cost": 1.35, "elasticity": -0.40857769875457045, "elasticity_confidence": "high", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20676", "current_price": 2.46, "recommended_price": 2.46, "unit_cost": 1.35, "elasticity": -0.34042772271707594, "elasticity_confidence": "high", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20677", "current_price": 2.46, "recommended_price": 2.46, "unit_cost": 1.35, "elasticity": -0.49523216395399877, "elasticity_confidence": "high", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20679", "current_price": 12.46, "recommended_price": 13.99, "unit_cost": 6.85, "elasticity": -0.5164041832750274, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 9.98786219685683, "expected_profit": 71.31333608555778, "price_change_pct": 0.122792937399679}, {"sku": "20682", "current_price": 6.63, "recommended_price": 6.99, "unit_cost": 3.65, "elasticity": -0.9948525674627794, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 7.466202521773887, "expected_profit": 24.937116422724788, "price_change_pct": 0.05429864253393668}, {"sku": "20685", "current_price": 7.08, "recommended_price": 7.99, "unit_cost": 3.89, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 13.594991976950704, "expected_profit": 55.739467105497866, "price_change_pct": 0.12853107344632764}, {"sku": "20711", "current_price": 4.13, "recommended_price": 3.99, "unit_cost": 2.27, "elasticity": -0.5962041051672977, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 17.574418525706765, "expected_profit": 30.227999864215644, "price_change_pct": -0.03389830508474567}, {"sku": "20712", "current_price": 4.13, "recommended_price": 3.99, "unit_cost": 2.27, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 28.127233673185668, "expected_profit": 48.378841917879356, "price_change_pct": -0.03389830508474567}, {"sku": "20713", "current_price": 4.13, "recommended_price": 3.99, "unit_cost": 2.27, "elasticity": -0.03599471920118587, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 43.68723937852447, "expected_profit": 75.14205173106208, "price_change_pct": -0.03389830508474567}, {"sku": "20717", "current_price": 2.46, "recommended_price": 2.46, "unit_cost": 1.35, "elasticity": -0.9392571900069614, "elasticity_confidence": "high", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20718", "current_price": 3.29, "recommended_price": 2.99, "unit_cost": 1.81, "elasticity": -0.04528228875429703, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 24.338254350399918, "expected_profit": 28.719140133471907, "price_change_pct": -0.09118541033434646}, {"sku": "20719", "current_price": 2.46, "recommended_price": 2.46, "unit_cost": 1.35, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20723", "current_price": 2.46, "recommended_price": 2.46, "unit_cost": 1.35, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20724", "current_price": 2.46, "recommended_price": 2.46, "unit_cost": 1.35, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 4, "degradation_reason": "FALLBACK_RULE_ENGINE", "binding_constraints": [], "expected_units": null, "expected_profit": null, "price_change_pct": 0.0}, {"sku": "20725", "current_price": 4.13, "recommended_price": 3.99, "unit_cost": 2.27, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 70.58042977120748, "expected_profit": 121.39833920647688, "price_change_pct": -0.03389830508474567}, {"sku": "20726", "current_price": 4.13, "recommended_price": 3.99, "unit_cost": 2.27, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 25.340904560760514, "expected_profit": 43.586355844508084, "price_change_pct": -0.03389830508474567}, {"sku": "20727", "current_price": 4.96, "recommended_price": 4.99, "unit_cost": 2.73, "elasticity": -0.06649486068702767, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 50.61046295244113, "expected_profit": 114.37964627251698, "price_change_pct": 0.006048387096774244}, {"sku": "20728", "current_price": 4.13, "recommended_price": 3.99, "unit_cost": 2.27, "elasticity": -0.5406981512317763, "elasticity_confidence": "low", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 36.173215389023454, "expected_profit": 62.21793046912036, "price_change_pct": -0.03389830508474567}, {"sku": "20749", "current_price": 6.35, "recommended_price": 6.99, "unit_cost": 3.49, "elasticity": -0.7978070014123443, "elasticity_confidence": "high", "degradation_rung": 1, "degradation_reason": "OK_OPTIMAL", "binding_constraints": [], "expected_units": 14.680863258685026, "expected_profit": 51.38302140539759, "price_change_pct": 0.10078740157480315}], "elasticities": {"15036": {"sku": "15036", "point": -0.911623787562665, "ci_low": -1.3950788595929684, "ci_high": -0.42816871553236174, "std_error": 0.24666528356833864, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 429, "n_dropped": 0, "residual_price_sd": 0.308614783224611, "price_variation_explained": 0.08245305440426576}, "15056BL": {"sku": "15056BL", "point": -0.677164238825978, "ci_low": -1.2124887797829293, "ci_high": -0.1418396978690265, "std_error": 0.2731297846182497, "method": "dml-partialling-out", "confidence": "low", "reason": "interval width 1.071 exceeds tau_max 1.000", "n_observations": 426, "n_dropped": 0, "residual_price_sd": 0.26013709231971777, "price_variation_explained": 0.005170822645940043}, "15056N": {"sku": "15056N", "point": -0.8127714920951559, "ci_low": -1.2323099557913975, "ci_high": -0.3932330283989142, "std_error": 0.2140541698753179, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 473, "n_dropped": 0, "residual_price_sd": 0.337683678747805, "price_variation_explained": 0.08047005315607247}, "16237": {"sku": "16237", "point": -1.653292514518954, "ci_low": -2.17720128599677, "ci_high": -1.1293837430411382, "std_error": 0.26730530540884495, "method": "dml-partialling-out", "confidence": "low", "reason": "interval width 1.048 exceeds tau_max 1.000", "n_observations": 334, "n_dropped": 0, "residual_price_sd": 0.32947171781608015, "price_variation_explained": 0.14720581398765198}, "17003": {"sku": "17003", "point": -0.5406981512317763, "ci_low": -1.0074932550883786, "ci_high": -0.073903047375174, "std_error": 0.23816514361417995, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 301, "n_dropped": 0, "residual_price_sd": 0.7209656803558173, "price_variation_explained": 0.0}, "20674": {"sku": "20674", "point": -1.0889163628608516, "ci_low": -1.5396479737253344, "ci_high": -0.6381847519963688, "std_error": 0.22996933332438568, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 328, "n_dropped": 0, "residual_price_sd": 0.3023248194840505, "price_variation_explained": 0.027319269084090325}, "20675": {"sku": "20675", "point": -0.40857769875457045, "ci_low": -0.8530332986005004, "ci_high": 0.035877901091359465, "std_error": 0.2267672280469126, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 398, "n_dropped": 0, "residual_price_sd": 0.29524588496622767, "price_variation_explained": 0.17264576642908114}, "20676": {"sku": "20676", "point": -0.34042772271707594, "ci_low": -0.7456576949065787, "ci_high": 0.06480224947242685, "std_error": 0.2067537849602876, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 473, "n_dropped": 0, "residual_price_sd": 0.306975305024788, "price_variation_explained": 0.21832734466384396}, "20677": {"sku": "20677", "point": -0.49523216395399877, "ci_low": -0.9179714541225457, "ci_high": -0.07249287378545188, "std_error": 0.2156872746147687, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 420, "n_dropped": 0, "residual_price_sd": 0.3116872562802692, "price_variation_explained": 0.21007260834512131}, "20679": {"sku": "20679", "point": -0.5164041832750274, "ci_low": -0.9368404355798938, "ci_high": -0.09596793097016088, "std_error": 0.21451223370491193, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 383, "n_dropped": 0, "residual_price_sd": 0.3124178529329695, "price_variation_explained": 0.0}, "20682": {"sku": "20682", "point": -0.9948525674627794, "ci_low": -1.4054974790850863, "ci_high": -0.5842076558404725, "std_error": 0.2095165599273362, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 344, "n_dropped": 0, "residual_price_sd": 0.308352722711651, "price_variation_explained": 0.08123515720853014}, "20685": {"sku": "20685", "point": 0.19329314321516122, "ci_low": -0.17257400618745639, "ci_high": 0.5591602926177788, "std_error": 0.18667034307187838, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.193 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 533, "n_dropped": 0, "residual_price_sd": 0.2975364270897294, "price_variation_explained": 0.13532407053220508}, "20711": {"sku": "20711", "point": -0.5962041051672977, "ci_low": -0.9642652962504947, "ci_high": -0.22814291408410065, "std_error": 0.1877897726623636, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 452, "n_dropped": 0, "residual_price_sd": 0.3529861757183148, "price_variation_explained": 0.10398424342830248}, "20712": {"sku": "20712", "point": 0.20555937300678606, "ci_low": -0.15422734081774192, "ci_high": 0.565346086831314, "std_error": 0.1835680230159736, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.206 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 493, "n_dropped": 0, "residual_price_sd": 0.3344752783636083, "price_variation_explained": 0.2216555799124239}, "20713": {"sku": "20713", "point": -0.03599471920118587, "ci_low": -0.37874688648830146, "ci_high": 0.30675744808592975, "std_error": 0.17487676813997655, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 442, "n_dropped": 0, "residual_price_sd": 0.35429708389592773, "price_variation_explained": 0.11106204987054347}, "20717": {"sku": "20717", "point": -0.9392571900069614, "ci_low": -1.3697255675796036, "ci_high": -0.5087888124343192, "std_error": 0.219630759018085, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 430, "n_dropped": 0, "residual_price_sd": 0.3261998840588843, "price_variation_explained": 0.15807867892505933}, "20718": {"sku": "20718", "point": -0.04528228875429703, "ci_low": -0.35542695722341394, "ci_high": 0.2648623797148199, "std_error": 0.15823998344637888, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 510, "n_dropped": 0, "residual_price_sd": 0.35620656409427137, "price_variation_explained": 0.21956179448057433}, "20719": {"sku": "20719", "point": 0.2591430149262959, "ci_low": -0.04195916637922131, "ci_high": 0.5602451962318131, "std_error": 0.15362638481144184, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.259 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 534, "n_dropped": 0, "residual_price_sd": 0.34267131732190964, "price_variation_explained": 0.3266078190672904}, "20723": {"sku": "20723", "point": 0.4733053189930822, "ci_low": 0.19690047235985259, "ci_high": 0.7497101656263119, "std_error": 0.1410254723114689, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.473 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 522, "n_dropped": 0, "residual_price_sd": 0.3425180929276714, "price_variation_explained": 0.37683718304016833}, "20724": {"sku": "20724", "point": 0.435762469470919, "ci_low": 0.15109992591594668, "ci_high": 0.7204250130258913, "std_error": 0.14523866040414732, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.436 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 564, "n_dropped": 0, "residual_price_sd": 0.3147764206208323, "price_variation_explained": 0.4465029311769495}, "20725": {"sku": "20725", "point": 0.2557420981430345, "ci_low": 0.07260193978146376, "ci_high": 0.4388822565046052, "std_error": 0.09344057329938558, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.256 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 589, "n_dropped": 0, "residual_price_sd": 0.4236874640101735, "price_variation_explained": 0.270330708689835}, "20726": {"sku": "20726", "point": 0.27546705947158434, "ci_low": 0.07803363054035559, "ci_high": 0.47290048840281307, "std_error": 0.10073319228749021, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.275 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 568, "n_dropped": 0, "residual_price_sd": 0.41905135244465147, "price_variation_explained": 0.275852201175408}, "20727": {"sku": "20727", "point": -0.06649486068702767, "ci_low": -0.27903864528906563, "ci_high": 0.1460489239150103, "std_error": 0.10844269908965483, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 576, "n_dropped": 0, "residual_price_sd": 0.4192543745881536, "price_variation_explained": 0.29087187178607465}, "20728": {"sku": "20728", "point": 0.25976831061873196, "ci_low": 0.0002841105144598677, "ci_high": 0.519252510723004, "std_error": 0.13239233075252932, "method": "dml-partialling-out", "confidence": "low", "reason": "estimated elasticity 0.260 is non-negative, which contradicts downward-sloping demand; treat as a model failure, not a finding", "n_observations": 569, "n_dropped": 0, "residual_price_sd": 0.40685878749729604, "price_variation_explained": 0.26802455604823916}, "20749": {"sku": "20749", "point": -0.7978070014123443, "ci_low": -1.268826919557162, "ci_high": -0.32678708326752653, "std_error": 0.240320700717035, "method": "dml-partialling-out", "confidence": "high", "reason": "identified from residual price variation; interval within tau_max", "n_observations": 407, "n_dropped": 0, "residual_price_sd": 0.19824761655388287, "price_variation_explained": 0.0}}};
+const S = DATA.summary, D = DATA.decisions;
+const state = {rung:null, conf:null, dir:null, q:"", sort:"price_change_pct", desc:true};
+
+const pct = v => (v*100).toFixed(1) + "%";
+const money = v => v==null ? "—" : v.toFixed(2);
+const el = (t,c,x) => {const n=document.createElement(t); if(c)n.className=c; if(x!=null)n.textContent=x; return n;};
+
+/* theme */
+const root = document.documentElement;
+document.getElementById("themeBtn").onclick = () => {
+  const dark = getComputedStyle(root).getPropertyValue("--ground").trim().toLowerCase().startsWith("#0e");
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+};
+
+/* verdict */
+const stamp = document.getElementById("stamp"), stampText = document.getElementById("stampText");
+stamp.classList.add(S.may_publish ? "go" : "stop");
+stampText.textContent = S.may_publish ? "Cleared to publish" : "Publication halted";
+document.getElementById("asOf").textContent = (S.as_of||"").slice(0,10);
+
+/* breakers */
+const bw = document.getElementById("breakers");
+(S.breakers||[]).forEach(b => {
+  const row = el("div","breaker");
+  row.append(el("span","name", b.name.replace(/_/g," ")));
+  row.append(el("span","pill " + (b.halted?"stop":"go"), b.halted?"HALT":"PASS"));
+  row.append(el("span","why", b.detail));
+  bw.append(row);
+});
+
+/* filtering */
+function filtered(){
+  return D.filter(d =>
+    (state.rung===null || +d.degradation_rung===state.rung) &&
+    (state.conf===null || d.elasticity_confidence===state.conf) &&
+    (state.dir===null || (state.dir==="up" ? d.price_change_pct>1e-9 : d.price_change_pct<-1e-9)) &&
+    (!state.q || String(d.sku).toLowerCase().includes(state.q))
+  );
+}
+
+function bars(node, rows, total, onclick){
+  node.replaceChildren();
+  rows.forEach(r => {
+    const b = el("button","bar-row"); b.type="button";
+    if(onclick){ b.setAttribute("aria-pressed", String(r.active)); b.onclick = () => onclick(r); }
+    else { b.style.cursor="default"; }
+    b.append(el("span","k", r.label));
+    const track = el("div","bar-track"), fill = el("div","bar-fill" + (r.tone?" is-"+r.tone:""));
+    fill.style.width = (total ? (r.value/total*100) : 0).toFixed(1) + "%";
+    track.append(fill); b.append(track);
+    b.append(el("span","v", r.display != null ? r.display : String(r.value)));
+    node.append(b);
+  });
+}
+
+function tile(label, figure, foot, tone){
+  const c = el("div","card stripe" + (tone?" is-"+tone:""));
+  c.append(el("span","label",label));
+  c.append(el("div","figure",figure));
+  if(foot) c.append(el("p","foot",foot));
+  return c;
+}
+
+function render(){
+  const rows = filtered();
+  const n = rows.length;
+
+  /* rung histogram — always over the whole run, with the active one marked */
+  const rungLabels = {1:"1 · optimal",2:"2 · stale feed",3:"3 · pooled β",4:"4 · rule engine",5:"5 · held"};
+  const counts = S.rung_counts;
+  bars(document.getElementById("rungBars"),
+    [1,2,3,4,5].map(r => ({
+      label: rungLabels[r], value: counts[String(r)]||0,
+      display: String(counts[String(r)]||0), active: state.rung===r,
+      tone: r>=4 ? "stop" : (r===3 ? "warn" : null)
+    })), S.n_priced, r => {
+      const which = +r.label.split(" ")[0];
+      state.rung = state.rung===which ? null : which; render();
+    });
+
+  const up = rows.filter(d=>d.price_change_pct>1e-9).length;
+  const down = rows.filter(d=>d.price_change_pct<-1e-9).length;
+  const flat = n-up-down;
+  bars(document.getElementById("moveBars"), [
+    {label:"Increase", value:up, display:String(up), tone:null},
+    {label:"Decrease", value:down, display:String(down), tone:"stop"},
+    {label:"No change", value:flat, display:String(flat), tone:"warn"},
+  ], n||1, null);
+  const med = rows.length ? rows.map(d=>d.price_change_pct).sort((a,b)=>a-b)[Math.floor(rows.length/2)] : 0;
+  document.getElementById("moveFoot").textContent =
+    "Median change " + (med>=0?"+":"") + pct(med) + " across " + n + " decisions in view.";
+
+  /* tiles recompute against the filter */
+  const es = rows.map(d=>d.elasticity).filter(v=>v!=null && isFinite(v)).sort((a,b)=>a-b);
+  const medE = es.length ? es[Math.floor(es.length/2)] : NaN;
+  const trusted = rows.filter(d=>d.elasticity_confidence==="high").length;
+  const degraded = rows.filter(d=>+d.degradation_rung>=3).length;
+  const t = document.getElementById("tiles"); t.replaceChildren();
+  t.append(tile("SKUs in view", String(n), S.n_priced + " priced in the run"));
+  t.append(tile("Median elasticity", isFinite(medE)? medE.toFixed(2) : "—",
+    es.length + " identified", isFinite(medE) && medE>=0 ? "stop" : null));
+  t.append(tile("Elasticity trusted", n? pct(trusted/n):"—",
+    trusted + " of " + n + " usable", trusted/Math.max(n,1) < .6 ? "warn" : "ok"));
+  t.append(tile("Degraded (rung ≥3)", n? pct(degraded/n):"—",
+    degraded + " decisions", degraded/Math.max(n,1) > .05 ? "warn" : "ok"));
+
+  /* table */
+  const tb = document.getElementById("rows"); tb.replaceChildren();
+  document.getElementById("count").textContent = n + " of " + D.length + " decisions";
+  if(!n){ const tr=el("tr"); const td=el("td","empty","No decisions match these filters."); td.colSpan=8; tr.append(td); tb.append(tr); return; }
+  const sorted = rows.slice().sort((a,b)=>{
+    const x=a[state.sort], y=b[state.sort];
+    if(typeof x==="string") return state.desc ? String(y).localeCompare(String(x)) : String(x).localeCompare(String(y));
+    return state.desc ? (y??0)-(x??0) : (x??0)-(y??0);
+  });
+  sorted.slice(0,400).forEach(d=>{
+    const tr=el("tr");
+    tr.append(el("td",null,d.sku));
+    tr.append(el("td","n",money(d.current_price)));
+    tr.append(el("td","n",money(d.recommended_price)));
+    const ch=el("td","n " + (d.price_change_pct>1e-9?"up":d.price_change_pct<-1e-9?"down":"flat"),
+      (d.price_change_pct>=0?"+":"")+pct(d.price_change_pct));
+    tr.append(ch);
+    tr.append(el("td","n", d.elasticity!=null&&isFinite(d.elasticity)? d.elasticity.toFixed(2):"—"));
+    const conf=el("td"); conf.append(el("span","pill "+(d.elasticity_confidence==="high"?"go":"mute"),
+      d.elasticity_confidence==="high"?"HIGH":"LOW")); tr.append(conf);
+    tr.append(el("td","n", String(d.degradation_rung)));
+    tr.append(el("td",null,(d.binding_constraints||[]).join(", ")||"—"));
+    tb.append(tr);
+  });
+}
+
+/* elasticity histogram (fixed, over the run) */
+(function(){
+  const pts = Object.values(DATA.elasticities).map(e=>e.point).filter(v=>v!=null&&isFinite(v));
+  const edges=[-4,-3,-2,-1.5,-1,-0.5,0,1];
+  const rows=[];
+  for(let i=0;i<edges.length-1;i++){
+    const c=pts.filter(v=>v>=edges[i]&&v<edges[i+1]).length;
+    rows.push({label:edges[i].toFixed(1)+" to "+edges[i+1].toFixed(1), value:c, display:String(c),
+      tone: edges[i]>=0 ? "stop" : null});
+  }
+  bars(document.getElementById("elasticHist"), rows, Math.max(pts.length,1), null);
+})();
+
+/* elasticity health */
+(function(){
+  const h=S.elasticity.health, box=document.getElementById("elasticHealth");
+  const line=(k,v,tone)=>{const r=el("div","breaker");
+    r.append(el("span","name",k)); r.append(el("span","pill "+tone, v)); return r;};
+  box.append(line("Sign violations", pct(h.sign_violation_rate||0),
+    h.sign_violations_breached ? "stop":"go"));
+  box.append(line("Median CI width", (h.median_ci_width??NaN).toFixed(2),
+    h.ci_width_breached ? "warn":"go"));
+  box.append(line("Declined to answer", String(h.n_declined??0), (h.n_declined||0)>0 ? "warn":"go"));
+  box.append(line("Overall", h.healthy ? "HEALTHY":"NOT HEALTHY", h.healthy?"go":"stop"));
+})();
+
+/* confusion matrix */
+(function(){
+  const c=S.classification; const grid=document.getElementById("cm");
+  if(!c){ grid.append(el("div","cm-legend","No decisions to score.")); return; }
+  const g=c.grid;
+  const cells=[["","Published","Halted"],
+               ["Good batch", g[0][0], g[0][1]],
+               ["Bad batch",  g[1][0], g[1][1]]];
+  cells.forEach((row,ri)=>row.forEach((v,ci)=>{
+    const isHead = ri===0 || ci===0;
+    const d=el("div", isHead?"hd":"cell", String(v));
+    if(!isHead) d.classList.add((ri===ci)?"hit":"miss");
+    grid.append(d);
+  }));
+  document.getElementById("cmLegend").textContent =
+    "Rows: what the batch really was. Columns: what the breakers did. "
+    + "Top-right is a good run held up; bottom-left is a bad one published.";
+  const s=document.getElementById("cmScores");
+  const line=(k,v,tone)=>{const r=el("div","breaker");
+    r.append(el("span","name",k)); r.append(el("span","pill "+tone, v)); return r;};
+  s.append(line("Precision", isFinite(c.precision)? c.precision.toFixed(3):"—","mute"));
+  s.append(line("Recall", isFinite(c.recall)? c.recall.toFixed(3):"—","mute"));
+  s.append(line("Specificity", isFinite(c.specificity)? c.specificity.toFixed(3):"—","mute"));
+  s.append(line("Balanced accuracy", isFinite(c.balanced_accuracy)? c.balanced_accuracy.toFixed(3):"—","mute"));
+  if(c.accuracy_is_misleading){
+    const w=el("p","foot","Classes are imbalanced here, so plain accuracy ("
+      + c.accuracy.toFixed(3) + ") flatters. Read recall and specificity instead.");
+    s.append(w);
+  }
+})();
+
+/* notes */
+(function(){
+  const ul=document.getElementById("notes");
+  (S.notes||[]).forEach(n=>ul.append(el("li",null,n)));
+  if((S.unobserved||[]).length)
+    ul.append(el("li",null,"Unobserved confounders that could not be controlled for: "
+      + S.unobserved.join(", ") + "."));
+})();
+
+/* controls */
+document.querySelectorAll(".chip[data-conf]").forEach(b=>b.onclick=()=>{
+  state.conf = state.conf===b.dataset.conf ? null : b.dataset.conf;
+  document.querySelectorAll(".chip[data-conf]").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.conf===state.conf)));
+  render();
+});
+document.querySelectorAll(".chip[data-dir]").forEach(b=>b.onclick=()=>{
+  state.dir = state.dir===b.dataset.dir ? null : b.dataset.dir;
+  document.querySelectorAll(".chip[data-dir]").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.dir===state.dir)));
+  render();
+});
+document.getElementById("clear").onclick=()=>{
+  state.rung=state.conf=state.dir=null; state.q=""; document.getElementById("q").value="";
+  document.querySelectorAll(".chip[data-conf],.chip[data-dir]").forEach(x=>x.setAttribute("aria-pressed","false"));
+  render();
+};
+document.getElementById("q").oninput=e=>{state.q=e.target.value.toLowerCase().trim(); render();};
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k;
+  if(state.sort===k) state.desc=!state.desc; else {state.sort=k; state.desc=true;}
+  document.querySelectorAll("th[data-k]").forEach(x=>x.removeAttribute("aria-sort"));
+  th.setAttribute("aria-sort", state.desc?"descending":"ascending");
+  render();
+});
+
+render();
+</script>

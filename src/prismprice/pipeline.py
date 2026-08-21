@@ -42,6 +42,7 @@ import pandas as pd
 
 from prismprice import config
 from prismprice.decision.engine import DecisionEngine
+from prismprice.decision.ladder import endings_for_price
 from prismprice.estimation.elasticity import (
     DoubleMLElasticity,
     ElasticityEstimate,
@@ -264,11 +265,16 @@ def run_pipeline(
             median = base * (price / p0) ** e
             return (median * max(1.0 - s, 0.05), median, median * (1.0 + s))
 
+        rounded_price = round(current_price, 2)
         request = PriceRequest(
             sku=str(sku),
             as_of=stamp,
-            current_price=round(current_price, 2),
+            current_price=rounded_price,
             unit_cost=round(max(unit_cost, 0.01), 2),
+            # Banded by magnitude. A flat .95/.99 rule cannot produce a legal
+            # price inside a 15% cap below about GBP 2, which held a third of
+            # this catalogue at rung 4.
+            allowed_price_endings=endings_for_price(rounded_price),
         )
         outcome = engine.decide(request, demand_at=demand_at)
         best = outcome.best_outcome()

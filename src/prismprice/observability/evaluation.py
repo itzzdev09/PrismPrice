@@ -410,3 +410,86 @@ def elasticity_health(
             and (not np.isfinite(median_width) or median_width <= max_ci_width)
         ),
     }
+
+
+def score_breakers_on_labelled_batches(
+    n_batches: int = 400,
+    catalogue_size: int = 200,
+    fault_rate: float = 0.25,
+    seed: int = 20260817,
+) -> ClassificationReport:
+    """Score the circuit breakers against batches whose status is known.
+
+    The breakers are the only genuinely binary classifiers in the system, and
+    until now nothing measured how good they are. This constructs the ground
+    truth rather than guessing it: a fraction of batches have a real fault
+    injected — an inverted sign that drives the catalogue one way, or a cost
+    feed error that collapses prices — and the rest are ordinary runs with
+    two-sided movement on a small share of SKUs.
+
+    An earlier attempt paired "did a guardrail bind" with "did the decision
+    degrade" and called that a classifier. It is not: on a rung-4 fallback
+    nothing binds *because the held price passes*, so the pairing scored a
+    working system as a wall of false positives. Two fields being boolean does
+    not make them a prediction and a truth.
+
+    What this measures is the operator's real question — how often the breakers
+    stop a good run. A false positive delays prices that were fine; a false
+    negative publishes a batch that was not.
+
+    Args:
+        n_batches: Batches to simulate.
+        catalogue_size: Prices per batch.
+        fault_rate: Share of batches given a genuine fault.
+        seed: RNG seed.
+
+    Returns:
+        :class:`ClassificationReport` over the halt / do-not-halt decision.
+    """
+    from prismprice.observability.alerts import (
+        aggregate_movement,
+        evaluate_breakers,
+        no_guardrail_violations,
+        one_sided_movement,
+    )
+
+    rng = np.random.default_rng(seed)
+    truth: list[bool] = []
+    predicted: list[bool] = []
+
+    for _ in range(n_batches):
+        previous = rng.uniform(8.0, 60.0, catalogue_size)
+        costs = previous * 0.55
+        is_faulty = bool(rng.random() < fault_rate)
+
+        new = previous.copy()
+        if is_faulty:
+            # A real batch-level fault: part of the catalogue driven one way.
+            # Severity spans subtle to obvious *on purpose*. An earlier version
+            # only injected large faults and scored a perfect 1.000 on every
+            # metric, which says nothing: a classifier that separates the
+            # obvious cases has not been tested. The interesting number is
+            # recall just above the threshold, and it is only visible if
+            # marginal faults are in the sample.
+            direction = -1.0 if rng.random() < 0.5 else 1.0
+            breadth = float(rng.uniform(0.25, 0.95))
+            depth = float(rng.uniform(0.015, 0.20))
+            touched = rng.random(catalogue_size) < breadth
+            new[touched] = previous[touched] * (1.0 + direction * depth)
+        else:
+            # An ordinary run: a small share moves, in both directions.
+            touched = rng.random(catalogue_size) < rng.uniform(0.02, 0.15)
+            signs = rng.choice([-1.0, 1.0], size=int(touched.sum()))
+            new[touched] = previous[touched] * (1.0 + signs * rng.uniform(0.01, 0.04))
+
+        results = [
+            one_sided_movement(previous.tolist(), new.tolist()),
+            aggregate_movement(previous.tolist(), new.tolist()),
+            no_guardrail_violations(new.tolist(), costs.tolist()),
+        ]
+        may_publish, _ = evaluate_breakers(results)
+
+        truth.append(is_faulty)
+        predicted.append(not may_publish)
+
+    return binary_classification_report(truth, predicted)
