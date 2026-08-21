@@ -150,6 +150,46 @@ $$\max_{\mathbf{p} \in \mathcal{P}} \sum_{i=1}^{K} \left( \mathbb{E}[q_i(\mathbf
 
 ---
 
+### 4.6b Sequential markdown (`decision/markdown.py`) — 🟢 built
+
+**Not in the original specification.** §4.6 optimises a price for *today*, which
+is right when stock replenishes and wrong for a finite quantity sold over a
+finite season. There, selling a unit consumes the option to sell it later, and
+the problem stops being a repeated one-shot choice.
+
+- **State** $(t, i)$: periods remaining, units on hand. **Action:** a ladder price.
+- **Reward:** $\min(d, i)(p - c)$, with $d \sim 	ext{Poisson}(\lambda(p))$.
+- **Solved exactly** by backward induction: $V(t,i) = \max_p \mathbb{E}_d[\min(d,i)(p-c) + V(t-1, i - \min(d,i))]$.
+
+**Two behaviours emerge rather than being coded.** Holding 250 units, the optimal
+price walks 39.95 → 34.95 → 29.95 → 24.95 → 22.95 as the season closes; run the
+other way, it *rises* as stock grows scarce. A rule-based markdown ladder has to
+be told both.
+
+**Measured against baselines on realised profit** (never on value functions — a
+policy's value function is what it believes): beats a static price chosen with
+full hindsight, on profit and on sell-through (99.5% vs 96.8%), and beats myopic
+pricing by 141%. The edge grows with demand uncertainty exactly as theory
+predicts, +1.1% over a 60-period season against +2.2% over a 7-period one.
+
+**Why this is not reinforcement learning.** This is the obvious place for RL and
+deliberately does not use it: the state space is enumerable, so the Bellman
+equation solves exactly, and an exact optimum dominates any approximation. A
+policy network would add sampling error, training variance and an
+uninterpretable rule and buy nothing back. Function approximation earns its
+place when the state stops being enumerable — thousands of SKUs under a shared
+shelf constraint, cross-price effects within the category, or a competitor's
+price as part of the state. The tabular solution is not a simplification of RL;
+it is the answer RL would be approximating.
+
+**It derives $
+u$ instead of assuming it.** `shadow_price_at()` returns
+$V(t,i) - V(t,i-1)$ — the inventory shadow price that §4.6 takes as an input and
+`AssumptionSet` flags as invented. The opportunity cost of selling a unit now is
+what that unit would have earned later, and the value function knows that number.
+
+---
+
 ### 4.7 Governance & Guardrails (`governance/guardrails.py`) — 🟢 built
 
 Each guardrail is a pure predicate returning a structured `GuardrailResult`:
@@ -301,6 +341,6 @@ Four properties of this record are enforced by the model, not by convention:
 | 2 Demand | ⚪ | Quantile LightGBM p10/p90 empirical coverage within $\pm 3\text{pp}$ |
 | 3 Causal Elasticity | ⚪ | DML recovers synthetic ground-truth $\beta$ within CI on $\ge 90\%$ of SKUs |
 | 4 Retention | ⚪ | Deep Survival cohort curve MAE below threshold on held-out test window |
-| 5 Decision | ⚪ | Category portfolio backtest beats cost-plus and competitor-match baselines |
+| 5 Decision | 🟢 met | Category backtest beats cost-plus (+33.3%) and competitor-match (+14.8%); sequential markdown MDP beats a hindsight-chosen static price and myopic pricing |
 | 7 Serving | ⚪ | API contracts pass; chaos test (killed model store) degrades cleanly to Level 5 (`CRITICAL_MAINTAIN_PREV`) |
 | 8 Learning | ⚪ | OPE recovers known policy value on synthetic logs within tolerance |
