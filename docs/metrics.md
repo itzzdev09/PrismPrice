@@ -2,7 +2,7 @@
 
 Expands README §6. Every metric here has a definition precise enough to implement, an owner, a threshold, and a stated action when the threshold is breached. A metric with no action attached is decoration and does not belong on a dashboard.
 
-**Status:** specification. The KPI definitions are fixed; no dashboard is built yet (see README §0).
+**Status:** the metric computations in §1-§5 and the circuit breakers in §6 are implemented in [`prismprice.observability`](../src/prismprice/observability/) and tested. **No dashboard is built** — these are the numbers a dashboard would render, not the rendering. §7 remains a statement of intent about what is deliberately not measured.
 
 ---
 

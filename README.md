@@ -14,7 +14,7 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ## 0. Status
 
-This document specifies the full system. **All eight layers are built**, plus the parameter-provenance layer that binds them. Every component in the architecture specification is now implemented, plus a sequential markdown MDP that was not in it. The observability layer (L7) remains. The table says which, so you can tell the design from the code before you clone it.
+This document specifies the full system. **All eight layers are built**, plus the parameter-provenance layer that binds them. Every layer and every component in the architecture specification is implemented, plus a sequential markdown MDP that was not in it. The table says which, so you can tell the design from the code before you clone it.
 
 | Layer | Status | What exists |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ This document specifies the full system. **All eight layers are built**, plus th
 | L3 Decision | 🟢 **Built & tested** | Objective J(p) with lambda/gamma weights, candidate ladder snapped to publishable endings, Monte-Carlo simulation with common random numbers, CVaR shortfall, guardrail filtering and the immutable decision record. Category backtest beats cost-plus by 33.3% and competitor-match by 14.8% |
 | L5 Learning | 🟢 **Built & tested** | Switchback and geo-split assignment with recorded propensities, safe contextual bandit bounded by a pessimistic value floor and a cumulative risk budget, and IPS / SNIPS / doubly-robust off-policy evaluation that recovers a known policy value from synthetic logs |
 | L6 Serving | 🟢 **Built & tested** | FastAPI `/decide`, `/decide/batch`, `/health`; degradation rungs 1/2/4/5 exercised end to end; chaos test kills the model store and degrades to `CRITICAL_MAINTAIN_PREV` |
-| L7 Observability | ⚪ Spec only | KPI definitions in [docs/metrics.md](docs/metrics.md) |
+| L7 Observability | 🟢 **Built & tested** | Reference-anchored PSI drift detection, the KPI computations from [docs/metrics.md](docs/metrics.md) including the CPPC headline, and circuit breakers that halt publication rather than notifying someone |
 | **Cross-cutting: parameter provenance** | 🟢 **Built & tested** | Every decision-path constant carries a source (literature / policy / technical), objective weights λ and γ solved from stated trades rather than chosen, sensitivity brackets on every policy dial, CI fails on an unsourced constant — see §8.2 |
 
 225 tests, property-based where the guarantee is universal and scored against known ground truth where it is statistical. Everything marked *spec only* is a design that has been thought through and written down, not code that runs. The roadmap in §9 is the build order.
