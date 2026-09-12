@@ -19,6 +19,15 @@ from prismprice.decision.objective import (
     sample_demand,
     score_candidate,
 )
+from prismprice.decision.robust_markdown import (
+    RegretRobustPolicy,
+    RobustMarkdownPolicy,
+    RobustMarkdownProblem,
+    exact_policy_value,
+    simulate_robust_policy,
+    solve_regret_robust_markdown,
+    solve_robust_markdown,
+)
 
 __all__ = [
     "CandidateOutcome",
@@ -27,12 +36,19 @@ __all__ = [
     "MarkdownPolicy",
     "MarkdownProblem",
     "ObjectiveWeights",
+    "RegretRobustPolicy",
+    "RobustMarkdownPolicy",
+    "RobustMarkdownProblem",
     "competitor_match_price",
     "cost_plus_price",
+    "exact_policy_value",
     "generate_ladder",
     "sample_demand",
     "score_candidate",
     "simulate_policy",
+    "simulate_robust_policy",
     "snap_to_ending",
     "solve_markdown",
+    "solve_regret_robust_markdown",
+    "solve_robust_markdown",
 ]

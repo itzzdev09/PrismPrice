@@ -41,7 +41,8 @@ season.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -106,6 +107,23 @@ class JointMarkdownProblem:
             raise ValueError(f"elasticity must be negative, got {self.elasticity}")
         if self.markdown_budget < 0:
             raise ValueError(f"markdown_budget must be >= 0, got {self.markdown_budget}")
+
+        # Salvage must sit below the margin at the cheapest price, or scrapping
+        # a unit beats discounting it and no markdown is ever rational. An
+        # instance that violates this looks like a markdown problem and is not:
+        # every policy ties, because the optimal action is always "hold price
+        # and salvage". The first benchmark here did exactly that — salvage 3.00
+        # against a margin of 1.95 at the floor price — and reported the learned
+        # policy, per-SKU DP and never-discount as statistically identical.
+        cheapest = min(self.prices)
+        for k, (cost, salvage) in enumerate(zip(self.unit_costs, self.salvage_values, strict=True)):
+            floor_margin = cheapest - cost
+            if salvage >= floor_margin:
+                raise ValueError(
+                    f"SKU {k}: salvage {salvage} is not below the margin at the cheapest "
+                    f"price ({cheapest} - {cost} = {floor_margin}). Scrapping would beat "
+                    f"discounting, so this is not a markdown problem."
+                )
         if self.horizon < 1:
             raise ValueError(f"horizon must be >= 1, got {self.horizon}")
 
@@ -114,9 +132,7 @@ class JointMarkdownProblem:
         return len(self.inventories)
 
     def expected_demand(self, sku: int, price: float) -> float:
-        return float(
-            self.base_demands[sku] * (price / self.full_prices[sku]) ** self.elasticity
-        )
+        return float(self.base_demands[sku] * (price / self.full_prices[sku]) ** self.elasticity)
 
     def markdown_spend(self, sku: int, price: float, units: float) -> float:
         """Revenue given away versus full price. Never negative."""
@@ -186,14 +202,14 @@ def solve_joint_tabular(problem: JointMarkdownProblem, max_states: int = 4_000_0
                         sold = min(problem.expected_demand(k, price), float(index[k]))
                         total += sold * (price - problem.unit_costs[k])
                         spend += problem.markdown_spend(k, price, sold)
-                        landing[k] = int(round(index[k] - sold))
+                        landing[k] = round(index[k] - sold)
                     if spend > budget + 1e-9:
                         continue
                     remaining = max(budget - spend, 0.0)
                     b_next = int(np.argmin(np.abs(budget_grid - remaining)))
-                    total += float(nxt[tuple(landing) + (b_next,)])
+                    total += float(nxt[(*landing, b_next)])
                     best = max(best, total)
-                value[t][index + (b_i,)] = best if np.isfinite(best) else 0.0
+                value[t][(*index, b_i)] = best if np.isfinite(best) else 0.0
 
     return value
 
@@ -287,8 +303,32 @@ class NeuralMarkdownPolicy:
             ]
         )
 
-    def fit(self, problem: JointMarkdownProblem) -> NeuralMarkdownPolicy:
-        """Train against the simulator."""
+    def fit(
+        self,
+        problem: JointMarkdownProblem,
+        elasticity_sampler: Callable[[np.random.Generator], float] | None = None,
+    ) -> NeuralMarkdownPolicy:
+        """Train against the simulator.
+
+        Args:
+            problem: The season to learn a policy for.
+            elasticity_sampler: When given, called once per training episode to
+                draw the elasticity that episode is simulated under, in place of
+                ``problem.elasticity``. This is the multi-SKU counterpart of the
+                robust operator in :mod:`prismprice.decision.robust_markdown`:
+                there, ambiguity is handled inside an exact Bellman recursion,
+                which is unavailable here because the joint state cannot be
+                enumerated. Randomising the environment across the estimated
+                interval is what remains — the policy sees seasons drawn from
+                the whole interval during training, so it cannot specialise to a
+                point estimate it has no reason to trust.
+
+                The distinction from the exact case is worth keeping in view:
+                domain randomisation optimises the *average* over the interval,
+                not its tail, so it yields a policy that degrades gracefully
+                rather than one carrying a certificate. Defaults to ``None``,
+                which trains at ``problem.elasticity`` exactly as before.
+        """
         import torch
         from torch import nn
 
@@ -307,7 +347,7 @@ class NeuralMarkdownPolicy:
         ).to(device)
         optimiser = torch.optim.Adam(self._net.parameters(), lr=self.learning_rate)
 
-        for step in range(self.episodes // self.batch):
+        for _step in range(self.episodes // self.batch):
             log_probs, entropies, values, returns = [], [], [], []
 
             for _ in range(self.batch):
@@ -315,11 +355,21 @@ class NeuralMarkdownPolicy:
                 budget = problem.markdown_budget
                 episode_lp, episode_ent, episode_v = [], [], []
                 reward = 0.0
+                # Drawn per episode, not per period: an elasticity that resampled
+                # within a season would describe a customer base whose price
+                # sensitivity changes every day, which averages the ambiguity
+                # away instead of exposing the policy to it.
+                episode_problem = (
+                    problem
+                    if elasticity_sampler is None
+                    else replace(problem, elasticity=elasticity_sampler(rng))
+                )
 
                 for t in range(problem.horizon, 0, -1):
                     x = torch.tensor(
                         self._features(problem, t, stocks, budget),
-                        dtype=torch.float32, device=device,
+                        dtype=torch.float32,
+                        device=device,
                     )
                     out = self._net(x)
                     logits = out[: n * k].reshape(n, k)
@@ -334,7 +384,7 @@ class NeuralMarkdownPolicy:
                         if stocks[i] <= 0:
                             continue
                         price = problem.prices[int(choice[i].item())]
-                        demand = rng.poisson(problem.expected_demand(i, price))
+                        demand = rng.poisson(episode_problem.expected_demand(i, price))
                         sold = float(min(demand, stocks[i]))
                         spend = problem.markdown_spend(i, price, sold)
                         # The budget is a hard allowance: a SKU cannot spend
@@ -387,7 +437,8 @@ class NeuralMarkdownPolicy:
         with torch.no_grad():
             x = torch.tensor(
                 self._features(problem, t, np.asarray(stocks, dtype=float), budget),
-                dtype=torch.float32, device=device,
+                dtype=torch.float32,
+                device=device,
             )
             logits = self._net(x)[: problem.n_skus * len(problem.prices)]
             logits = logits.reshape(problem.n_skus, len(problem.prices))

@@ -225,6 +225,8 @@ Point-in-time-correct feature assembly: trailing demand, price history, referenc
 ### L3 — Decision
 Generate a discrete candidate ladder (snapped to psychological price endings — real retail prices end .95/.99, and threshold effects are real). Monte-Carlo each candidate through the demand distribution. Handle **cross-price effects within category** so a discount on one SKU is not booked as a win when it merely cannibalised its neighbour.
 
+**Sequential markdown under elasticity ambiguity.** The DML elasticity estimator produces an interval, and the markdown DP historically took only its midpoint — planning a whole season as though a number with a median confidence interval of 0.88 on the real panel were exact. [`decision/robust_markdown.py`](src/prismprice/decision/robust_markdown.py) propagates the interval instead, through two Bellman operators: one taking a CVaR of *value* over the ambiguity set, one taking a CVaR of *regret*. The first is a strict generalisation of the existing solver — at `robustness_level=0` it reproduces `solve_markdown` to 2·10⁻¹¹ with an identical policy array — and it **loses**, for a reason worth reading about. The second was built in response and wins. See [docs/robust-markdown-evaluation.md](docs/robust-markdown-evaluation.md) for the gap in the literature, the method, and the measured results, including what had to be retracted.
+
 ### L4 — Governance  🟢 built
 
 Guardrails, applied as a hard feasibility filter with a reason code on every rejection. All nine are implemented in [`governance/guardrails.py`](src/prismprice/governance/guardrails.py):
@@ -319,12 +321,12 @@ prismprice/
 │   ├── data/           🟢 schema contracts, quality gates, synthetic truth, UCI augmentation
 │   ├── features/       🟢 point-in-time assembly, Tobit un-censoring, cold-start priors
 │   ├── estimation/     🟡 demand (built); elasticity, survival CLV, competitor game to come
-│   ├── decision/       ⚪ ladder, portfolio simulation, objective, optimiser
+│   ├── decision/       🟢 ladder, objective, engine, markdown MDP, robust/regret operators
 │   ├── learning/       ⚪ experiments, safe bandits, off-policy evaluation
 │   ├── api/            ⚪ FastAPI service
 │   └── cli/            ⚪ build / train / backtest / score
 ├── tests/              🟢 unit, property, contract  (golden & backtest to come)
-├── docs/               🟢 architecture, data & modelling, metrics, playbooks
+├── docs/               🟢 architecture, data & modelling, metrics, playbooks, robust markdown
 ├── .github/workflows/  🟢 CI: lint, types, tests on 3.10-3.12
 ├── dashboards/         ⚪ Streamlit apps (exec, commercial, DS, eng)
 ├── notebooks/          ⚪ exploratory analysis, kept out of the import path
@@ -438,6 +440,7 @@ Governance (phase 6) was built first, out of order, for the reason given in §0.
 | **5 Decision** | 🟢 done | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
 | **7 Serving** | 🟢 done | API + batch + degradation matrix | Contract tests + chaos test on model outage |
 | **8 Learning** | 🟢 done | Safe bandits, OPE, designed experiments | OPE recovers known policy value on synthetic data |
+| **9 Ambiguity** | 🟢 done | Elasticity interval propagated into the markdown DP; value-CVaR and regret-CVaR Bellman operators, domain-randomised multi-SKU training | `robustness_level=0` reproduces the classical DP exactly; regret operator cuts worst-case-over-interval regret on 72% of synthetic and 80% of real decision-relevant SKUs ([docs](docs/robust-markdown-evaluation.md)) |
 
 Validating each model against **synthetic data with known ground truth** before trusting it on real data is what separates this from a project that merely produces plausible numbers.
 

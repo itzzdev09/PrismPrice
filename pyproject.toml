@@ -146,3 +146,17 @@ module = [
     "yaml.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# torch ships `py.typed`, so mypy follows into it rather than treating it as
+# Any — and then flags every call into `torch.distributions`, whose methods
+# (`sample`, `log_prob`, `entropy`) and `Tensor.backward` carry no annotations
+# upstream. The errors land at *our* call sites, so the exemption has to name
+# our module rather than torch's: a per-module override applies to the file
+# being checked, not the library being called.
+#
+# Narrowed to `disallow_untyped_calls` and to the one module that trains a
+# policy network. `strict` otherwise still applies here, so an untyped
+# definition of our own is still an error in this file.
+module = ["prismprice.decision.joint_markdown"]
+disallow_untyped_calls = false

@@ -344,6 +344,63 @@ DEFAULT_CVAR_ALPHA: Final[float] = register(
     )
 )
 
+# ---------------------------------------------------------------------------
+# Robust sequential markdown
+# ---------------------------------------------------------------------------
+#
+# DEFAULT_CVAR_ALPHA above is reused as the tail fraction of the *elasticity
+# ambiguity set*, not of a demand sample. That reuse is deliberate: "a bad
+# outcome" should mean the same thing whether the badness comes from a demand
+# draw or from having estimated the wrong demand curve, and an operator who has
+# stated one answer should not be asked for a second.
+
+DEFAULT_ROBUSTNESS_LEVEL: Final[float] = register(
+    Parameter(
+        name="DEFAULT_ROBUSTNESS_LEVEL",
+        value=0.5,
+        provenance=Provenance.POLICY,
+        rationale=(
+            "How far the sequential markdown policy moves from the certainty-equivalent "
+            "value function toward the CVaR of the value function over the estimated "
+            "elasticity confidence interval. 0 recovers the classical DP at the point "
+            "estimate exactly — the current behaviour — and 1 prices entirely against the "
+            "bad tail of what the elasticity might be. The default sits at the midpoint "
+            "because the two ends encode opposite and equally unreasonable beliefs: that "
+            "the point estimate is exact, or that the estimator is only ever wrong in the "
+            "expensive direction. Load-bearing only when the interval is wide; on a "
+            "tightly-estimated SKU every level agrees, which is the correct behaviour and "
+            "is what makes this a dial rather than a switch."
+        ),
+        owner="Head of pricing / commercial strategy",
+        elicitation=(
+            "The elasticity estimate has a confidence interval. Would you rather publish "
+            "the price that is best if the point estimate is right, or the price that "
+            "protects profit if the truth sits at the unprofitable end of that interval? "
+            "Answer on 0-1; the honest answers are almost never at either end."
+        ),
+        sensitivity=(0.0, 1.0),
+        requires_local_elicitation=True,
+    )
+)
+
+DEFAULT_ROBUST_GRID_SIZE: Final[int] = register(
+    Parameter(
+        name="DEFAULT_ROBUST_GRID_SIZE",
+        value=21,
+        provenance=Provenance.TECHNICAL,
+        rationale=(
+            "Elasticity values sampled across the confidence interval to form the "
+            "ambiguity set. The binding constraint is DEFAULT_CVAR_ALPHA: the CVaR is "
+            "the mean of the worst ceil(alpha * n) grid values, so n must be large enough "
+            "that this tail holds more than one atom, or the 'CVaR' silently degenerates "
+            "to the single worst grid point and the alpha dial stops doing anything. At "
+            "alpha=0.05, n=21 gives a two-atom tail — the smallest grid on which the "
+            "quantity is still a tail mean. Odd, so the point estimate lands on a grid "
+            "node rather than between two."
+        ),
+    )
+)
+
 DEFAULT_CLV_HORIZON_PERIODS: Final[int] = register(
     Parameter(
         name="DEFAULT_CLV_HORIZON_PERIODS",
