@@ -495,3 +495,75 @@ def test_estimate_ci_width_and_containment():
     assert estimate.contains(-1.9)
     assert not estimate.contains(-1.5)
     assert estimate.is_usable
+
+
+# ---------------------------------------------------------------------------
+# Parallel dispatch across SKUs
+# ---------------------------------------------------------------------------
+#
+# Every SKU is an independent fit, so fit() dispatches them across threads
+# above a small count. The only thing that dispatch is allowed to change is
+# wall-clock time — these tests exist to catch it changing anything else.
+
+
+def _estimates_match(a: dict[str, ElasticityEstimate], b: dict[str, ElasticityEstimate]) -> bool:
+    """Field-for-field equality, with NaN treated as matching NaN.
+
+    A plain ``==`` on the estimate dicts would report every declined-SKU pair
+    (``point`` is ``nan`` for both) as a mismatch, which is exactly backwards —
+    two estimators declining the same SKU for the same reason is agreement.
+    """
+    if a.keys() != b.keys():
+        return False
+    for sku in a:
+        for field_name in ElasticityEstimate.__dataclass_fields__:
+            x, y = getattr(a[sku], field_name), getattr(b[sku], field_name)
+            if isinstance(x, float) and isinstance(y, float) and np.isnan(x) and np.isnan(y):
+                continue
+            if x != y:
+                return False
+    return True
+
+
+@pytest.fixture(scope="module")
+def parallel_panel():
+    """Enough SKUs to clear fit()'s parallel-dispatch threshold, few enough to
+    fit twice (n_jobs=1 and n_jobs=-1) without the module becoming slow."""
+    return generate_panel(n_skus=6, n_days=260, n_customers=150, seed=13)
+
+
+def test_parallel_dispatch_matches_sequential_exactly(parallel_panel):
+    """The load-bearing test of this section: n_jobs must not be able to move
+    a single estimate. If it can, every real pipeline run's numbers depend on
+    how many cores happened to be free, which is not a defensible causal claim.
+    """
+    common = dict(n_repeats=2, n_folds=4)
+    sequential = DoubleMLElasticity(n_jobs=1, **common).fit(parallel_panel.daily)
+    parallel = DoubleMLElasticity(n_jobs=-1, **common).fit(parallel_panel.daily)
+
+    assert set(sequential.estimates) == set(parallel_panel.truth.skus)
+    assert _estimates_match(sequential.estimates, parallel.estimates)
+
+
+def test_device_params_are_restored_after_parallel_dispatch(parallel_panel):
+    """fit() borrows a single-threaded copy of device_params for the duration
+    of dispatch; anything reading it afterwards must see what the compute
+    layer actually resolved, not an artefact of how fitting was scheduled."""
+    model = DoubleMLElasticity(n_jobs=-1, n_repeats=1, n_folds=4)
+    model.fit(parallel_panel.daily)
+    assert model.device_params.get("num_threads") != 1
+    assert model.device_params.get("device_type") in {"cpu", "cuda"}
+
+
+def test_small_sku_counts_skip_parallel_dispatch(monkeypatch):
+    """Below the threshold, sequential is the faster choice, not a fallback
+    being tolerated — this pins that fit() actually takes that path rather
+    than paying thread-pool overhead on two SKUs."""
+    import prismprice.estimation.elasticity as mod
+
+    def _fail(*args, **kwargs):
+        raise AssertionError("Parallel should not run below the SKU threshold")
+
+    monkeypatch.setattr(mod, "Parallel", _fail)
+    panel = generate_panel(n_skus=2, n_days=200, seed=4)
+    DoubleMLElasticity(n_jobs=-1, n_repeats=1, n_folds=4).fit(panel.daily)

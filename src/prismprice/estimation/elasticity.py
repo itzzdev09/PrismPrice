@@ -84,6 +84,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from numpy.typing import NDArray
 
 from prismprice import config
@@ -288,6 +289,13 @@ class DoubleMLElasticity:
     num_leaves: int = 4
     min_child_samples: int = 30
     seed: int = config.DEFAULT_SEED
+    n_jobs: int = -1
+    """SKUs estimated concurrently in :meth:`fit`. ``1`` disables parallel
+    dispatch entirely; ``-1`` (the default) uses every available core. Purely a
+    runtime setting — it cannot change an estimate, only how long it takes to
+    get one, so unlike ``n_repeats``/``n_folds`` it carries no provenance
+    record. See :meth:`fit` for why this is not simply "faster" without
+    qualification."""
 
     estimates: dict[str, ElasticityEstimate] = field(default_factory=dict, init=False)
     device_params: dict[str, Any] = field(default_factory=dict, init=False)
@@ -298,6 +306,32 @@ class DoubleMLElasticity:
 
     def fit(self, daily: pd.DataFrame) -> DoubleMLElasticity:
         """Estimate elasticity for every SKU in *daily*.
+
+        Every SKU is a fully independent DML fit — nothing here shares state
+        across SKUs — so this is embarrassingly parallel, and above a handful
+        of SKUs it is worth exploiting: profiled on the real UCI panel, this
+        was the pipeline's dominant cost (323s of a ~324s run, 443 SKUs).
+
+        The parallel path is not simply "the same computation, sharing more
+        cores." Each SKU's panel is small — a few hundred rows — and LightGBM's
+        own thread pool defaults to using every core on *every single fit*, so
+        the naive approach (dispatch SKUs across Python threads or processes,
+        leave LightGBM's own threading alone) contends every fit against every
+        other for the same cores and measured **no** improvement (44.6s vs.
+        44.0s sequential, 60 SKUs). What actually works is the opposite
+        allocation: pin each fit to one thread and let *this* loop hand
+        different SKUs to different cores instead — measured 4-5x faster on the
+        same 60 SKUs, and bit-identical output, because ``deterministic=True``
+        in :func:`~prismprice.compute.lightgbm_device_params` makes a LightGBM
+        fit reproducible across thread counts, not just across repeated runs at
+        a fixed one (checked directly: zero-diff on every SKU tested).
+
+        The override touches a copy used only for the duration of dispatch;
+        ``self.device_params`` is restored to what
+        :func:`~prismprice.compute.lightgbm_device_params` actually resolved
+        once fitting finishes, so anything inspecting it afterwards (``pooled``,
+        a serialised run report) still sees the real device, not an artefact of
+        how ``fit`` happened to parallelise.
 
         Args:
             daily: Panel with one row per ``(sku, date)``.
@@ -314,10 +348,36 @@ class DoubleMLElasticity:
         # reported once instead of several hundred times.
         self.device_params = lightgbm_device_params("estimation.elasticity")
 
-        self.estimates = {}
-        for sku, frame in daily.groupby(self.sku_column, sort=True):
-            ordered = frame.sort_values(self.date_column)
-            self.estimates[str(sku)] = self._estimate_one(str(sku), ordered)
+        groups = [
+            (str(sku), frame.sort_values(self.date_column))
+            for sku, frame in daily.groupby(self.sku_column, sort=True)
+        ]
+
+        # Below this, thread-pool startup costs more than it saves; sequential
+        # is not a fallback being tolerated here, it is the faster choice.
+        # device_type is "cuda" only if LightGBM itself reports CUDA support
+        # (see lightgbm_device_params) — not the case for stock PyPI wheels,
+        # per compute.py's own findings, but the override below is a CPU-side
+        # threading knob and has no business touching a GPU boosting path.
+        can_pin_threads = self.device_params.get("device_type") == "cpu"
+
+        if self.n_jobs == 1 or len(groups) < 4 or not can_pin_threads:
+            results = [self._estimate_one(sku, frame) for sku, frame in groups]
+        else:
+            original_params = self.device_params
+            # Threading, not a process pool: LightGBM's C++ core releases the
+            # GIL during a fit, so Python threads genuinely run concurrently
+            # here, and a shared-memory panel means no per-SKU frame has to be
+            # pickled across a process boundary to get there.
+            self.device_params = {**original_params, "num_threads": 1}
+            try:
+                results = Parallel(n_jobs=self.n_jobs, backend="threading")(
+                    delayed(self._estimate_one)(sku, frame) for sku, frame in groups
+                )
+            finally:
+                self.device_params = original_params
+
+        self.estimates = {sku: estimate for (sku, _), estimate in zip(groups, results, strict=True)}
         return self
 
     def pooled(self, daily: pd.DataFrame) -> ElasticityEstimate:

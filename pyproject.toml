@@ -36,6 +36,10 @@ modelling = [
     "pandas>=2.0.0",
     "scikit-learn>=1.3.0",
     "lightgbm>=4.0.0",
+    # Cross-SKU parallel dispatch in DoubleMLElasticity.fit() (estimation/elasticity.py).
+    # Already an indirect dependency via scikit-learn; declared directly because
+    # this codebase imports it, not just something scikit-learn happens to use.
+    "joblib>=1.3.0",
     "econml>=0.15.0",
     "scikit-survival>=0.22.0",
     # The retention layer fits its Cox partial likelihood in torch, on GPU.
@@ -144,6 +148,7 @@ module = [
     "sksurv.*",
     "sentence_transformers.*",
     "yaml.*",
+    "joblib.*",
 ]
 ignore_missing_imports = true
 
