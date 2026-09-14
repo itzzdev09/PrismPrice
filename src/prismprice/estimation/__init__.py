@@ -12,6 +12,7 @@ from prismprice.estimation.competitor import (
 from prismprice.estimation.demand import (
     CalibrationReport,
     DemandForecast,
+    OverfitReport,
     QuantileDemandModel,
     calibration_report,
     rolling_origin_backtest,
@@ -42,6 +43,7 @@ __all__ = [
     "ElasticityEstimate",
     "ElasticityScore",
     "EquilibriumAnalysis",
+    "OverfitReport",
     "QuantileDemandModel",
     "ReactionFunction",
     "SurvivalFit",

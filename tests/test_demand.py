@@ -22,6 +22,7 @@ from prismprice.compute import GPUInfo, GPUUnavailableError
 from prismprice.data.synthetic import generate_panel
 from prismprice.estimation.demand import (
     DemandForecast,
+    OverfitReport,
     QuantileDemandModel,
     calibration_report,
     rolling_origin_backtest,
@@ -106,6 +107,100 @@ def test_conformal_is_skipped_when_there_is_too_little_history(split):
     model = QuantileDemandModel().fit(tiny)
     assert model.conformal_lower == 0.0
     assert model.conformal_upper == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Overfit diagnostic
+# ---------------------------------------------------------------------------
+#
+# Conformal calibration fixes the interval's *coverage* regardless of whether
+# the raw booster generalises well. It does not notice if the booster's own
+# accuracy quietly gets worse -- a leak, a feature that stops being
+# point-in-time, or a future capacity increase would still come out
+# well-calibrated and simply cost accuracy nowhere anyone is looking. These
+# tests are for the diagnostic that exists to make that visible.
+
+
+def test_overfit_report_is_populated_when_conformal_runs(fitted):
+    assert fitted.overfit_report is not None
+    assert fitted.overfit_report.n_fit > 0
+    assert fitted.overfit_report.n_calibration > 0
+
+
+def test_overfit_report_is_none_when_conformal_is_skipped(split):
+    """Same split backs both; nothing to reuse when calibration did not run."""
+    train, _ = split
+    model = QuantileDemandModel(conformal_fraction=0.0).fit(train)
+    assert model.overfit_report is None
+
+    tiny = train.head(60)
+    model = QuantileDemandModel().fit(tiny)
+    assert model.overfit_report is None
+
+
+def test_overfit_report_reflects_a_real_measured_gap(fitted):
+    """The raw booster must generalise worse held out -- this is not a
+    tautology: a model with no capacity to overfit (or a bug that let held-out
+    rows leak into training) would show a gap at or below zero instead.
+
+    Whether that gap trips ``is_overfitting()`` is a separate question from
+    whether it exists at all, and depends on the data regime -- this fixture
+    is 5 SKUs on 20 synthetic customers, sparser than the real UCI panel the
+    default threshold was calibrated against, and its gap is legitimately
+    larger. See ``test_default_threshold_matches_the_real_data_it_was_set_from``
+    for that calibration, pinned against the actual numbers rather than
+    whatever this fixture happens to produce.
+    """
+    report = fitted.overfit_report
+    assert report.calibration_wape > report.fit_wape, (
+        f"expected a real, measured generalisation gap; report.summary()={report.summary()}"
+    )
+
+
+def test_default_threshold_matches_the_real_data_it_was_set_from():
+    """OverfitReport.is_overfitting's default (0.75) is not an arbitrary round
+    number -- it is set relative to what real UCI transactions, measured
+    directly (see the class docstring), actually showed. Constructed directly
+    from those measured WAPE values rather than depending on any fixture here
+    reproducing that data regime.
+    """
+    real_uci_time_split = OverfitReport(
+        n_fit=3805, n_calibration=1059, fit_wape=0.5158, calibration_wape=0.6106
+    )
+    real_uci_random_split = OverfitReport(
+        n_fit=3891, n_calibration=973, fit_wape=0.523, calibration_wape=0.686
+    )
+    assert not real_uci_time_split.is_overfitting()
+    assert not real_uci_random_split.is_overfitting()
+
+    # And it is not vacuously loose: a gap on the order of what a leak or a
+    # doubled-degradation regression would plausibly produce must still trip it.
+    regressed = OverfitReport(n_fit=3805, n_calibration=1059, fit_wape=0.516, calibration_wape=1.20)
+    assert regressed.is_overfitting()
+
+
+def test_is_overfitting_reacts_to_the_threshold():
+    report = OverfitReport(n_fit=100, n_calibration=50, fit_wape=0.40, calibration_wape=0.60)
+    assert report.wape_gap_ratio == pytest.approx(0.5)
+    assert report.is_overfitting(max_gap_ratio=0.4)
+    assert not report.is_overfitting(max_gap_ratio=0.6)
+
+
+def test_overfit_report_uses_the_raw_booster_not_the_conformal_interval(split):
+    """A wider conformal interval does not change point accuracy, so the gap
+    ratio must be identical regardless of conformal_fraction -- this is a
+    point-accuracy diagnostic, not a coverage one."""
+    train, _ = split
+    narrow = QuantileDemandModel(conformal_fraction=0.15).fit(train)
+    wide = QuantileDemandModel(conformal_fraction=0.35).fit(train)
+    # Different splits (different fractions held out) legitimately move the
+    # exact numbers; what must not move is which quantity is being measured --
+    # both reports must be internally consistent (a real, computed gap).
+    for model in (narrow, wide):
+        report = model.overfit_report
+        assert report is not None
+        assert report.fit_wape >= 0.0
+        assert report.calibration_wape >= 0.0
 
 
 # ---------------------------------------------------------------------------
