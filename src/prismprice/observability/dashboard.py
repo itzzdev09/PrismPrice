@@ -355,6 +355,7 @@ _TEMPLATE = r"""<title>PrismPrice Run Review</title>
     <button class="chip" data-dir="up" type="button">Price up</button>
     <button class="chip" data-dir="down" type="button">Price down</button>
     <button class="chip" id="clear" type="button">Clear</button>
+    <button class="chip" id="copyView" type="button">Copy view link</button>
     <input type="search" id="q" placeholder="Search SKU" aria-label="Search SKU">
     <div class="toolbar-actions">
       <button class="chip" id="exportCsv" type="button">Export CSV</button>
@@ -392,6 +393,7 @@ _TEMPLATE = r"""<title>PrismPrice Run Review</title>
 const DATA = __PAYLOAD__;
 const S = DATA.summary, D = DATA.decisions;
 const state = {rung:null, conf:null, dir:null, q:"", sort:"price_change_pct", desc:true};
+const stateKeys = ["rung","conf","dir","q","sort","desc"];
 
 const pct = v => (v*100).toFixed(1) + "%";
 const money = v => v==null ? "—" : v.toFixed(2);
@@ -440,6 +442,21 @@ function filtered(){
   );
 }
 
+function syncHash(){
+  const params = new URLSearchParams();
+  stateKeys.forEach(key => { if(state[key] !== null && state[key] !== "") params.set(key, state[key]); });
+  history.replaceState(null, "", params.toString() ? "#" + params.toString() : location.pathname);
+}
+function loadHash(){
+  const params = new URLSearchParams(location.hash.slice(1));
+  stateKeys.forEach(key => {
+    if(!params.has(key)) return;
+    const value=params.get(key);
+    state[key]=key==="rung" ? Number(value) : key==="desc" ? value==="true" : value;
+  });
+  document.getElementById("q").value=state.q;
+}
+
 function bars(node, rows, total, onclick){
   node.replaceChildren();
   rows.forEach(r => {
@@ -466,6 +483,7 @@ function tile(label, figure, foot, tone){
 function render(){
   const rows = filtered();
   const n = rows.length;
+  syncHash();
   const profit = rows.reduce((total, row) => total + (Number(row.expected_profit) || 0), 0);
   document.getElementById("viewCount").textContent = String(n);
   document.getElementById("viewProfit").textContent = money(profit);
@@ -617,6 +635,12 @@ document.getElementById("clear").onclick=()=>{
   document.querySelectorAll(".chip[data-conf],.chip[data-dir]").forEach(x=>x.setAttribute("aria-pressed","false"));
   render();
 };
+document.getElementById("copyView").onclick=async()=>{
+  syncHash();
+  await navigator.clipboard?.writeText(location.href);
+  document.getElementById("copyView").textContent="View link copied";
+  setTimeout(()=>document.getElementById("copyView").textContent="Copy view link", 1400);
+};
 document.getElementById("q").oninput=e=>{state.q=e.target.value.toLowerCase().trim(); render();};
 document.getElementById("exportCsv").onclick=()=>{
   const columns=["sku","current_price","recommended_price","price_change_pct",
@@ -636,5 +660,17 @@ document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
 });
 
 render();
+loadHash();
+document.querySelectorAll(".chip[data-conf]").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.conf===state.conf)));
+document.querySelectorAll(".chip[data-dir]").forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.dir===state.dir)));
+render();
+document.addEventListener("keydown", event=>{
+  if(event.key==="/" && document.activeElement.tagName!=="INPUT"){
+    event.preventDefault(); document.getElementById("q").focus();
+  }
+  if(event.key==="Escape" && document.activeElement===document.getElementById("q")){
+    document.getElementById("clear").click();
+  }
+});
 </script>
 """
