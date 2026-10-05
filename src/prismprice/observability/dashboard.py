@@ -264,6 +264,11 @@ _TEMPLATE = r"""<title>PrismPrice Run Review</title>
   input[type=search]:focus-visible{outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent)}
   .count{margin-left:auto; color:var(--ink-3); font-size:var(--step--1);
     font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+  .toolbar-actions{display:flex; gap:8px; align-items:center}
+  .toolbar-actions .chip{padding:7px 10px}
+  .view-summary{display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+    margin:0 0 14px; color:var(--ink-2); font-size:var(--step--1)}
+  .view-summary strong{color:var(--ink); font-family:"IBM Plex Mono",monospace}
 
   .tablewrap{overflow-x:auto; border:1px solid var(--rule); border-radius:3px; background:var(--surface)}
   table{border-collapse:collapse; width:100%; font-size:var(--step--1)}
@@ -351,7 +356,15 @@ _TEMPLATE = r"""<title>PrismPrice Run Review</title>
     <button class="chip" data-dir="down" type="button">Price down</button>
     <button class="chip" id="clear" type="button">Clear</button>
     <input type="search" id="q" placeholder="Search SKU" aria-label="Search SKU">
+    <div class="toolbar-actions">
+      <button class="chip" id="exportCsv" type="button">Export CSV</button>
+      <button class="chip" id="exportJson" type="button">Export JSON</button>
+    </div>
     <span class="count" id="count"></span>
+  </div>
+  <div class="view-summary" aria-live="polite">
+    <span>Current view: <strong id="viewCount">0</strong> decisions</span>
+    <span>Expected profit: <strong id="viewProfit">—</strong></span>
   </div>
   <div class="tablewrap"><table>
     <thead><tr>
