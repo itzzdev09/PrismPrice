@@ -306,6 +306,30 @@ Four dashboards, four audiences. Every metric has an owner and a threshold.
 
 Full definitions, thresholds and alerting rules: [docs/metrics.md](docs/metrics.md). What to do when one of them fires: [docs/playbooks.md](docs/playbooks.md).
 
+### Run review dashboard
+
+The generated run-review dashboard is a self-contained HTML artifact. Create it
+from a saved pipeline run with:
+
+```python
+from prismprice.observability.dashboard import render_dashboard
+
+render_dashboard("data/runs/real_run.json", "data/runs/dashboard.html")
+```
+
+Open `data/runs/dashboard.html` in a browser to inspect the publish verdict,
+breaker reasons, degradation rungs, elasticity health, and per-SKU decisions.
+The decision table supports:
+
+- cross-filtering by degradation rung, elasticity confidence, direction, and SKU;
+- live KPIs for the filtered view, including expected profit;
+- CSV and JSON export of exactly the decisions currently in view;
+- bookmarkable filters via the URL hash and a **Copy view link** control;
+- light/dark themes, sortable columns, `/` to focus search, and `Esc` to reset.
+
+The artifact has no JavaScript or stylesheet dependencies, so it can be shared
+as a file without a running application server.
+
 ---
 
 ## 7. Repository layout
