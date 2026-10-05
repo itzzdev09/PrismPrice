@@ -396,6 +396,16 @@ const state = {rung:null, conf:null, dir:null, q:"", sort:"price_change_pct", de
 const pct = v => (v*100).toFixed(1) + "%";
 const money = v => v==null ? "—" : v.toFixed(2);
 const el = (t,c,x) => {const n=document.createElement(t); if(c)n.className=c; if(x!=null)n.textContent=x; return n;};
+const download = (name, content, type) => {
+  const blob = new Blob([content], {type});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = name; link.click();
+  URL.revokeObjectURL(link.href);
+};
+const csvCell = value => {
+  const text = value == null ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+};
 
 /* theme */
 const root = document.documentElement;
@@ -456,6 +466,9 @@ function tile(label, figure, foot, tone){
 function render(){
   const rows = filtered();
   const n = rows.length;
+  const profit = rows.reduce((total, row) => total + (Number(row.expected_profit) || 0), 0);
+  document.getElementById("viewCount").textContent = String(n);
+  document.getElementById("viewProfit").textContent = money(profit);
 
   /* rung histogram — always over the whole run, with the active one marked */
   const rungLabels = {1:"1 · optimal",2:"2 · stale feed",3:"3 · pooled β",4:"4 · rule engine",5:"5 · held"};
@@ -605,6 +618,15 @@ document.getElementById("clear").onclick=()=>{
   render();
 };
 document.getElementById("q").oninput=e=>{state.q=e.target.value.toLowerCase().trim(); render();};
+document.getElementById("exportCsv").onclick=()=>{
+  const columns=["sku","current_price","recommended_price","price_change_pct",
+    "elasticity","elasticity_confidence","degradation_rung","expected_profit"];
+  const lines=[columns.join(","), ...filtered().map(row=>columns.map(key=>csvCell(row[key])).join(","))];
+  download("prismprice-decisions.csv", lines.join("\n"), "text/csv;charset=utf-8");
+};
+document.getElementById("exportJson").onclick=()=>{
+  download("prismprice-decisions.json", JSON.stringify(filtered(), null, 2), "application/json");
+};
 document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
   const k=th.dataset.k;
   if(state.sort===k) state.desc=!state.desc; else {state.sort=k; state.desc=true;}
