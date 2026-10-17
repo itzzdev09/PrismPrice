@@ -20,6 +20,7 @@ every price silently goes stale overnight.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -28,6 +29,8 @@ from prismprice.governance.schemas import PriceRequest
 from prismprice.serving.service import DecisionService
 
 __all__ = ["BatchRequest", "create_app"]
+
+_WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
 
 class BatchRequest(BaseModel):
@@ -55,6 +58,8 @@ def create_app(service: DecisionService) -> Any:
     and nothing reaches for a global at import time.
     """
     from fastapi import FastAPI
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
 
     application = FastAPI(
         title="PrismPrice",
@@ -65,6 +70,10 @@ def create_app(service: DecisionService) -> Any:
             "the constraints that bound it, and a reason code."
         ),
     )
+
+    @application.get("/", include_in_schema=False)
+    def home() -> Any:
+        return FileResponse(_WEB_DIR / "index.html")
 
     @application.get("/health")
     def health() -> dict[str, Any]:
@@ -82,6 +91,8 @@ def create_app(service: DecisionService) -> Any:
             "count": len(outcomes),
             "decisions": [_response(outcome) for outcome in outcomes],
         }
+
+    application.mount("/assets", StaticFiles(directory=_WEB_DIR), name="assets")
 
     return application
 
