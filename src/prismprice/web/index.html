@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Explore explainable, guardrail-first retail pricing with PrismPrice.">
+  <title>PrismPrice — pricing with a point of view</title>
+  <link rel="stylesheet" href="/assets/tokens.css">
+  <link rel="stylesheet" href="/assets/layout.css">
+  <link rel="stylesheet" href="/assets/components.css">
+  <link rel="stylesheet" href="/assets/responsive.css">
+  <script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#top" aria-label="PrismPrice home">
+      <span class="brand-mark" aria-hidden="true">P</span><span>PrismPrice</span>
+    </a>
+    <nav class="navigation" aria-label="Main navigation">
+      <a href="#workbench">Workbench</a><a href="#principles">Principles</a>
+      <a href="#guardrails">Guardrails</a>
+    </nav>
+    <div class="top-actions">
+      <span class="service-state" id="service-state"><span class="status-dot"></span>Checking service</span>
+      <button class="icon-button" id="theme-toggle" type="button" aria-label="Toggle color theme">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42m0-12.72-1.42 1.42m-9.88 9.88-1.42 1.42M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero page-wrap" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="sparkle">✳</span> Decision intelligence for modern retail</p>
+        <h1 id="hero-title">A better price<br>starts with <span>better<br>questions.</span></h1>
+        <p class="hero-intro">See the demand, the trade-offs and the guardrails behind every recommendation. Keep the decision human. Make the reasoning unmistakable.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#workbench">Open the workbench <span aria-hidden="true">↘</span></a>
+          <a class="text-link" href="#principles">Explore the method <span aria-hidden="true">↓</span></a>
+        </div>
+        <div class="hero-footnote"><span class="pulse"></span> Built for decisions you can explain.</div>
+      </div>
+      <div class="hero-art" aria-label="Illustration of a price decision balancing profit, demand and trust">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="prism-scene">
+          <div class="prism-shadow"></div>
+          <div class="prism-core"><span>Prism</span><strong>Price</strong></div>
+          <span class="orbit-label label-demand">DEMAND <i></i></span>
+          <span class="orbit-label label-margin"><i></i> MARGIN</span>
+          <span class="orbit-label label-trust">TRUST <i></i></span>
+        </div>
+        <span class="art-caption">One decision. Every angle.</span>
+      </div>
+      <div class="hero-facts" aria-label="PrismPrice capabilities">
+        <div><strong>09</strong><span>decision guardrails</span></div>
+        <div><strong>05</strong><span>graceful fallback stages</span></div>
+        <div><strong>01</strong><span>immutable audit trail</span></div>
+      </div>
+    </section>
+
+    <section class="workbench-section page-wrap" id="workbench" aria-labelledby="workbench-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">The decision studio</p><h2 id="workbench-title">Make a call.<br><span>See the whole story.</span></h2></div>
+        <p>Set the commercial context. PrismPrice scores a ladder of possible prices, filters out anything unsafe, and shows you what made the cut.</p>
+      </div>
+      <div class="workbench-shell">
+        <div class="workbench-topline">
+          <span class="live-tag"><i></i> Interactive workbench</span>
+          <span class="demo-tag" id="model-label">Model status loading…</span>
+        </div>
+        <div class="workbench-grid">
+          <form class="decision-form" id="decision-form">
+            <div class="form-heading"><span class="step-number">01</span><div><h3>Price context</h3><p>One product. Your current facts.</p></div></div>
+            <label class="field"><span>Product SKU</span><input name="sku" value="SKU-001" maxlength="100" required autocomplete="off"></label>
+            <div class="field-row">
+              <label class="field"><span>Current price</span><div class="input-affix"><i>$</i><input name="current_price" type="number" min="0.01" step="0.01" value="30.00" required></div></label>
+              <label class="field"><span>Unit cost</span><div class="input-affix"><i>$</i><input name="unit_cost" type="number" min="0.01" step="0.01" value="15.00" required></div></label>
+            </div>
+            <div class="field-row">
+              <label class="field"><span>Competitor price <small>optional</small></span><div class="input-affix"><i>$</i><input name="competitor_price" type="number" min="0.01" step="0.01" placeholder="Not supplied"></div></label>
+              <label class="field"><span>Stock cover <small>days · optional</small></span><div class="input-affix"><input name="inventory_cover_days" type="number" min="0" step="1" placeholder="Not supplied"></div></label>
+            </div>
+            <details class="advanced-options">
+              <summary>Policy and promotion settings <span aria-hidden="true">＋</span></summary>
+              <div class="field-row">
+                <label class="field"><span>Margin floor</span><div class="input-affix"><input name="margin_floor_pct" type="number" min="0" max="100" step="1" value="15"><i>%</i></div></label>
+                <label class="field"><span>Price move cap</span><div class="input-affix"><input name="movement_cap_pct" type="number" min="0" max="50" step="1" value="15"><i>%</i></div></label>
+              </div>
+              <label class="check-field"><input name="is_promo" type="checkbox"><span>This is a promotion</span></label>
+              <label class="field promo-anchor" hidden><span>Lowest price in last 30 days</span><div class="input-affix"><i>$</i><input name="min_price_last_30d" type="number" min="0.01" step="0.01" placeholder="Required for promotions"></div></label>
+            </details>
+            <p class="form-error" id="form-error" role="alert" hidden></p>
+            <button class="button button-primary submit-button" id="submit-button" type="submit">Find a safe price <span aria-hidden="true">↗</span></button>
+            <p class="form-note">Decision support only. Prices are never published automatically.</p>
+          </form>
+
+          <section class="decision-panel" id="decision-panel" aria-label="Recommendation results" aria-live="polite">
+            <div class="result-empty" id="result-empty">
+              <div class="empty-glyph" aria-hidden="true"><span></span><span></span><span></span></div>
+              <p class="eyebrow">Ready when you are</p><h3>Your next decision<br>begins here.</h3>
+              <p>A recommendation, its safety checks, and a complete audit trail will appear in this space.</p>
+              <span class="empty-hint"><kbd>⌘</kbd> &nbsp;Every step stays explainable</span>
+            </div>
+            <div id="result-content" hidden></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="principles-section page-wrap" id="principles" aria-labelledby="principles-title">
+      <div class="section-heading compact-heading">
+        <div><p class="eyebrow">A considered process</p><h2 id="principles-title">Optimised. <span>Never opaque.</span></h2></div>
+        <p>Numbers matter. So does how you got there. PrismPrice makes the reasoning part of the product.</p>
+      </div>
+      <div class="principles-grid">
+        <article class="principle-card"><span class="principle-index">01 / ESTIMATE</span><div class="principle-icon icon-wave" aria-hidden="true">⌁</div><h3>Read the demand.</h3><p>Understand how price and customer response move together, with uncertainty kept in view.</p></article>
+        <article class="principle-card"><span class="principle-index">02 / SIMULATE</span><div class="principle-icon icon-spark" aria-hidden="true">✳</div><h3>Compare real choices.</h3><p>Score a ladder of publishable prices against expected value and downside risk.</p></article>
+        <article class="principle-card"><span class="principle-index">03 / PROTECT</span><div class="principle-icon icon-shield" aria-hidden="true">◇</div><h3>Hold the line.</h3><p>Hard guardrails reject unsafe moves before a recommendation can leave the system.</p></article>
+        <article class="principle-card"><span class="principle-index">04 / EXPLAIN</span><div class="principle-icon icon-record" aria-hidden="true">≋</div><h3>Show your work.</h3><p>Every decision records its inputs, candidate scores, model versions and reason codes.</p></article>
+      </div>
+    </section>
+
+    <section class="guardrails-section page-wrap" id="guardrails" aria-labelledby="guardrails-title">
+      <div class="guardrails-card">
+        <div class="guardrails-copy"><p class="eyebrow">Safety is the feature</p><h2 id="guardrails-title">Freedom to optimise.<br><span>Confidence to say no.</span></h2><p>The best recommendation is worthless if it breaches the rules your business lives by. Every price passes the same explicit checks.</p><a class="text-link" href="https://github.com/itzzdev09/PrismPrice/blob/main/docs/metrics.md">Explore the project documentation <span aria-hidden="true">↗</span></a></div>
+        <ul class="guardrail-list">
+          <li><span>01</span> Minimum viable price</li><li><span>02</span> Margin protection</li>
+          <li><span>03</span> Promotion reference price</li><li><span>04</span> Competitive ceiling</li>
+          <li><span>05</span> Price movement limit</li><li><span>06</span> Change frequency</li>
+          <li><span>07</span> Inventory protection</li><li><span>08</span> Allowed price endings</li>
+          <li><span>09</span> Fairness and protected data</li>
+        </ul>
+      </div>
+    </section>
+    <section class="closing page-wrap"><p class="eyebrow">A clearer way to price</p><h2>Good decisions<br>leave a trail.</h2><a class="button button-dark" href="#workbench">Make your first decision <span aria-hidden="true">↗</span></a></section>
+  </main>
+  <footer class="site-footer page-wrap"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">P</span><span>PrismPrice</span></a><p>Decision support, with the reasoning built in.</p><div><a href="https://github.com/itzzdev09/PrismPrice">GitHub ↗</a><a href="/docs">API docs ↗</a></div></footer>
+</body>
+</html>
