@@ -1,0 +1,35 @@
+{
+  "tiny": {
+    "tabular_optimum": 78.0,
+    "learned": 64.76666666666667,
+    "ratio": 0.8303418803418803
+  },
+  "learned_rl": {
+    "mean_profit": 8900.9655625,
+    "profit_std_error": 8.587867360809845,
+    "mean_budget_spent": 529.0275,
+    "budget_utilisation": 0.1763425,
+    "mean_leftover": 624.56125
+  },
+  "independent_dp": {
+    "mean_profit": 8894.663375,
+    "profit_std_error": 8.308366839886874,
+    "mean_budget_spent": 1106.465,
+    "budget_utilisation": 0.36882166666666666,
+    "mean_leftover": 576.7675
+  },
+  "no_markdown": {
+    "mean_profit": 8897.1724375,
+    "profit_std_error": 8.868975759949974,
+    "mean_budget_spent": 0.0,
+    "budget_utilisation": 0.0,
+    "mean_leftover": 669.14875
+  },
+  "deepest_markdown": {
+    "mean_profit": 3150.0,
+    "profit_std_error": 1.3932447647090388e-15,
+    "mean_budget_spent": 3000.0,
+    "budget_utilisation": 1.0,
+    "mean_leftover": 900.0
+  }
+}
