@@ -17,6 +17,8 @@
 .sparkle { display: inline-block; margin-right: 4px; color: #806ef4; font-size: 13px; }
 .live-tag, .demo-tag { display: inline-flex; align-items: center; gap: 9px; color: var(--ink-secondary); font-size: 10px; font-weight: 620; }
 .demo-tag { padding: 6px 10px; border-radius: var(--round-pill); background: var(--amber-wash); color: var(--amber); font-size: 9px; font-weight: 650; }
+.demo-tag[data-mode="live"] { background: var(--green-wash); color: var(--green); }
+.demo-tag[data-mode="offline"] { background: var(--red-wash); color: var(--red); }
 .live-tag i { width: 6px; height: 6px; }
 .submit-button { width: 100%; min-height: 47px; justify-content: space-between; margin-top: 2px; padding-inline: 16px; }
 .submit-button:disabled { cursor: wait; opacity: .72; }
@@ -55,3 +57,5 @@
 .audit-trail strong { color: var(--ink-secondary); font-weight: 620; }
 .result-warning { margin: 13px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--amber-wash); color: var(--amber); font-size: 10px; line-height: 1.5; }
 .service-error { display: grid; min-height: 400px; place-content: center; text-align: center; }.service-error h3 { margin: 0 0 7px; font-size: 18px; }.service-error p { max-width: 270px; margin: 0; color: var(--ink-secondary); font-size: 11px; line-height: 1.6; }
+.record-export { padding: 0; border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; font-size: inherit; }
+.record-export:hover { color: var(--accent-deep); text-decoration: underline; }

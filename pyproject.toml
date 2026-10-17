@@ -78,6 +78,9 @@ dev = [
     "mypy>=1.8.0",
 ]
 
+[project.scripts]
+prismprice-web = "prismprice.webapp:main"
+
 [project.urls]
 Homepage = "https://github.com/itzzdev09/PrismPrice"
 Documentation = "https://github.com/itzzdev09/PrismPrice/tree/main/docs"
@@ -87,7 +90,7 @@ Issues = "https://github.com/itzzdev09/PrismPrice/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-prismprice = ["py.typed"]
+prismprice = ["py.typed", "web/*.html", "web/*.css", "web/*.js"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
