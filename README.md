@@ -306,6 +306,33 @@ Four dashboards, four audiences. Every metric has an owner and a threshold.
 
 Full definitions, thresholds and alerting rules: [docs/metrics.md](docs/metrics.md). What to do when one of them fires: [docs/playbooks.md](docs/playbooks.md).
 
+### PrismPrice web app
+
+The browser workbench is served by the same FastAPI application as the pricing
+API. Start a local demonstration with:
+
+```bash
+pip install -e ".[serving]"
+python -m prismprice.webapp
+```
+
+Open <http://127.0.0.1:8000>. Enter product cost, current price, and optional
+market or stock context to request a recommendation. The workbench shows the
+candidate ladder, the selected decision rung, every returned guardrail result,
+and a downloadable JSON audit record. Interactive requests are evaluated by
+`POST /decide`; service status comes from `GET /health`.
+
+The launch command uses a deterministic **sample demand curve** so the UI works
+without fitted retail models. It is labelled in the workbench and is for
+exploration only; its recommendations are not trained, production or suitable
+for publishing. A deployed application should pass its fitted model-backed
+`DecisionService` into `prismprice.serving.app.create_app(service)`. That serves
+the same workbench against the supplied service, alongside `/decide`,
+`/decide/batch`, `/health`, and the FastAPI docs at `/docs`.
+
+`prismprice-web` is also installed as a command by `pip install -e
+".[serving]"` and starts the same localhost demo.
+
 ### Run review dashboard
 
 The generated run-review dashboard is a self-contained HTML artifact. Create it
