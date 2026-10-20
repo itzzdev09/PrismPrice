@@ -20,6 +20,9 @@ every price silently goes stale overnight.
 
 from __future__ import annotations
 
+import os
+import secrets
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -47,19 +50,43 @@ class BatchRequest(BaseModel):
     synchronously, so an unbounded list is a request that never returns.
     """
 
-    requests: list[PriceRequest] = Field(..., min_length=1, max_length=1000)
+    model_config = {"extra": "forbid"}
+
+    requests: list[PriceRequest] = Field(..., min_length=1, max_length=100)
 
 
-def create_app(service: DecisionService) -> Any:
+def create_app(
+    service: DecisionService,
+    *,
+    api_key: str | None = None,
+    allow_anonymous: bool = False,
+    trusted_hosts: Sequence[str] = ("localhost", "127.0.0.1"),
+    expose_docs: bool = False,
+) -> Any:
     """Build the API around an already-wired *service*.
 
     A factory rather than a module-level ``app`` so the service (and therefore
     the model store) is injected. Tests get to run against a store they control,
     and nothing reaches for a global at import time.
     """
-    from fastapi import FastAPI
+    from fastapi import Depends, FastAPI, HTTPException
     from fastapi.responses import FileResponse
+    from fastapi.security import APIKeyHeader
     from fastapi.staticfiles import StaticFiles
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+    from prismprice.serving.security import RequestBodyLimitMiddleware, SecurityHeadersMiddleware
+
+    configured_api_key = api_key if api_key is not None else os.getenv("PRISMPRICE_API_KEY")
+    if not allow_anonymous:
+        if not configured_api_key:
+            raise RuntimeError(
+                "Set PRISMPRICE_API_KEY or pass api_key when creating a network-accessible PrismPrice app."
+            )
+        if len(configured_api_key) < 32:
+            raise RuntimeError("PRISMPRICE_API_KEY must contain at least 32 characters.")
+    if not trusted_hosts:
+        raise ValueError("trusted_hosts must contain at least one allowed host.")
 
     application = FastAPI(
         title="PrismPrice",
@@ -69,7 +96,29 @@ def create_app(service: DecisionService) -> Any:
             "prices: every response carries its assumptions, its uncertainty, "
             "the constraints that bound it, and a reason code."
         ),
+        docs_url="/docs" if expose_docs else None,
+        redoc_url=None,
+        openapi_url="/openapi.json" if expose_docs else None,
     )
+    application.add_middleware(RequestBodyLimitMiddleware, max_bytes=256 * 1024)
+    application.add_middleware(SecurityHeadersMiddleware)
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=list(trusted_hosts))
+
+    api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+    def require_api_key(token: str | None = Depends(api_key_header)) -> None:
+        if allow_anonymous:
+            return
+        if (
+            configured_api_key is None
+            or token is None
+            or not secrets.compare_digest(token, configured_api_key)
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="Missing or invalid API key.",
+                headers={"WWW-Authenticate": "APIKey"},
+            )
 
     @application.get("/", include_in_schema=False)
     def home() -> Any:
@@ -77,14 +126,23 @@ def create_app(service: DecisionService) -> Any:
 
     @application.get("/health")
     def health() -> dict[str, Any]:
+        report = service.health()
+        return {
+            "healthy": report.healthy,
+            "model_store_available": report.model_store_available,
+            "policy_version": report.policy_version,
+        }
+
+    @application.get("/internal/health", dependencies=[Depends(require_api_key)])
+    def internal_health() -> dict[str, Any]:
         return service.health().as_dict()
 
-    @application.post("/decide")
+    @application.post("/decide", dependencies=[Depends(require_api_key)])
     def decide(request: PriceRequest) -> dict[str, Any]:
         outcome = service.decide(request)
         return _response(outcome)
 
-    @application.post("/decide/batch")
+    @application.post("/decide/batch", dependencies=[Depends(require_api_key)])
     def decide_batch(payload: BatchRequest) -> dict[str, Any]:
         outcomes = service.decide_batch(payload.requests)
         return {

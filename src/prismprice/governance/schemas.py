@@ -205,9 +205,9 @@ class PriceRequest(BaseModel):
     forbidden so that this is enforced at construction, not by convention.
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", allow_inf_nan=False)
 
-    sku: str = Field(..., min_length=1, description="Unique product SKU identifier")
+    sku: str = Field(..., min_length=1, max_length=128, description="Unique product SKU identifier")
     as_of: datetime = Field(..., description="Point-in-time timestamp of the decision")
     current_price: float = Field(..., gt=0, description="Current published item price")
     unit_cost: float = Field(
@@ -283,6 +283,7 @@ class PriceRequest(BaseModel):
     )
     allowed_price_endings: tuple[int, ...] | None = Field(
         config.DEFAULT_ALLOWED_PRICE_ENDINGS,
+        max_length=100,
         description="Permitted price endings in whole cents, e.g. (95, 99). None "
         "disables ladder snapping entirely.",
     )

@@ -64,7 +64,8 @@ async function submitDecision(event) {
   submit.textContent = "Scoring the price ladder…";
   showLoading();
   try {
-    const decision = await requestDecision(body);
+    const apiKey = form.elements.namedItem("api_key").value;
+    const decision = await requestDecision(body, apiKey);
     renderDecision(decision, result);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (problem) {

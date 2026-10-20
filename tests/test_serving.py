@@ -23,6 +23,7 @@ from prismprice.serving import DecisionService, InMemoryModelStore, ModelStoreUn
 from prismprice.serving.app import create_app
 
 AS_OF = datetime(2026, 8, 17, 2, tzinfo=timezone.utc)
+TEST_API_KEY = "t" * 32
 
 
 def demand(sku: str, price: float) -> tuple[float, float, float]:
@@ -61,7 +62,13 @@ def service(store) -> DecisionService:
 def client(service):
     from fastapi.testclient import TestClient
 
-    return TestClient(create_app(service))
+    application = create_app(
+        service,
+        api_key=TEST_API_KEY,
+        trusted_hosts=("testserver",),
+        expose_docs=True,
+    )
+    return TestClient(application, headers={"X-API-Key": TEST_API_KEY})
 
 
 # ---------------------------------------------------------------------------
@@ -221,8 +228,81 @@ def test_customer_attributes_are_refused_at_the_boundary(client):
 def test_health_reports_the_compute_backends(client):
     body = client.get("/health").json()
     assert body["model_store_available"] is True
-    assert "compute" in body
-    assert "backends" in body["compute"]
+    assert body["policy_version"] == "1.4.2"
+    assert "compute" not in body
+
+
+def test_internal_health_requires_an_api_key(service):
+    from fastapi.testclient import TestClient
+
+    app = create_app(service, api_key=TEST_API_KEY, trusted_hosts=("testserver",))
+    client_without_key = TestClient(app)
+    client_with_key = TestClient(app, headers={"X-API-Key": TEST_API_KEY})
+
+    assert client_without_key.get("/internal/health").status_code == 401
+    assert "compute" in client_with_key.get("/internal/health").json()
+
+
+def test_decision_route_requires_an_api_key(service):
+    from fastapi.testclient import TestClient
+
+    app = create_app(service, api_key=TEST_API_KEY, trusted_hosts=("testserver",))
+    response = TestClient(app).post("/decide", json=request_payload())
+    assert response.status_code == 401
+
+
+def test_untrusted_host_is_rejected(service):
+    from fastapi.testclient import TestClient
+
+    app = create_app(service, api_key=TEST_API_KEY, trusted_hosts=("testserver",))
+    response = TestClient(app).get("/", headers={"host": "attacker.example"})
+    assert response.status_code == 400
+
+
+def test_docs_are_disabled_by_default(service):
+    from fastapi.testclient import TestClient
+
+    app = create_app(service, api_key=TEST_API_KEY, trusted_hosts=("testserver",))
+    client = TestClient(app)
+    assert client.get("/docs").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
+def test_app_requires_a_key_unless_anonymous_mode_is_explicit(service, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.delenv("PRISMPRICE_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="PRISMPRICE_API_KEY"):
+        create_app(service)
+
+    with pytest.raises(RuntimeError, match="32 characters"):
+        create_app(service, api_key="short-key")
+
+    app = create_app(service, allow_anonymous=True, trusted_hosts=("testserver",))
+    assert TestClient(app).post("/decide", json=request_payload()).status_code == 200
+
+
+def test_oversized_request_body_is_rejected_before_validation(client):
+    response = client.post("/decide", content=b" " * (256 * 1024 + 1))
+    assert response.status_code == 413
+
+
+def test_batch_limit_is_100_requests(client):
+    requests = [request_payload(sku=f"SKU-{i:03d}") for i in range(101)]
+    response = client.post("/decide/batch", json={"requests": requests})
+    assert response.status_code == 422
+
+
+def test_sku_length_is_bounded(client):
+    response = client.post("/decide", json=request_payload(sku="S" * 129))
+    assert response.status_code == 422
+
+
+def test_security_headers_are_present(client):
+    response = client.get("/")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert "default-src 'self'" in response.headers["content-security-policy"]
 
 
 def test_stale_competitor_surfaces_as_rung_two(client):

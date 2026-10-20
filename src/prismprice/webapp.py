@@ -8,6 +8,8 @@ is not trained on retail data; production deployments should call
 
 from __future__ import annotations
 
+from typing import Any
+
 from prismprice.decision import DecisionEngine
 from prismprice.serving import DecisionService, InMemoryModelStore
 from prismprice.serving.app import create_app
@@ -23,7 +25,7 @@ def _sample_demand(sku: str, price: float) -> tuple[float, float, float]:
     return median * 0.8, median, median * 1.2
 
 
-def create_demo_app():
+def create_demo_app() -> Any:
     """Build the web app around a labelled local demonstration model."""
     store = InMemoryModelStore(
         demand=_sample_demand,
@@ -33,7 +35,12 @@ def create_demo_app():
         store=store,
         engine=DecisionEngine(policy_version="demo-1.0"),
     )
-    return create_app(service)
+    return create_app(
+        service,
+        allow_anonymous=True,
+        trusted_hosts=("localhost", "127.0.0.1"),
+        expose_docs=True,
+    )
 
 
 app = create_demo_app()

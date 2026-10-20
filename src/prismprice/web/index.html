@@ -90,6 +90,11 @@
               <label class="check-field"><input name="is_promo" type="checkbox"><span>This is a promotion</span></label>
               <label class="field promo-anchor" hidden><span>Lowest price in last 30 days</span><div class="input-affix"><i>$</i><input name="min_price_last_30d" type="number" min="0.01" step="0.01" placeholder="Required for promotions"></div></label>
             </details>
+            <details class="advanced-options">
+              <summary>API access <span aria-hidden="true">＋</span></summary>
+              <label class="field"><span>API key <small>only if required</small></span><input name="api_key" type="password" maxlength="512" autocomplete="off" placeholder="X-API-Key"></label>
+              <p class="form-note">Sent with this decision request and kept only in this page until it is refreshed.</p>
+            </details>
             <p class="form-error" id="form-error" role="alert" hidden></p>
             <button class="button button-primary submit-button" id="submit-button" type="submit">Find a safe price <span aria-hidden="true">↗</span></button>
             <p class="form-note">Decision support only. Prices are never published automatically.</p>

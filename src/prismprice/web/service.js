@@ -35,10 +35,12 @@ export async function fetchHealth() {
   return response.json();
 }
 
-export async function requestDecision(body) {
+export async function requestDecision(body, apiKey = "") {
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  if (apiKey.trim()) headers["X-API-Key"] = apiKey.trim();
   const response = await fetch("/decide", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   const result = await response.json();

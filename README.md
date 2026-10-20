@@ -12,27 +12,11 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ---
 
-## 0. Status
+## Overview
 
-This document specifies the full system. **All eight layers are built**, plus the parameter-provenance layer that binds them. Every layer and every component in the architecture specification is implemented, plus a sequential markdown MDP that was not in it. The table says which, so you can tell the design from the code before you clone it.
+PrismPrice is a decision-support system for retail and e-commerce pricing. It combines demand estimates, price sensitivity, customer lifetime value, price optimization, and business guardrails. Recommendations include the inputs, constraints, and reason codes behind each decision; the system does not publish prices automatically.
 
-| Layer | Status | What exists |
-| --- | --- | --- |
-| **L0 Data foundation** | 🟢 **Built & tested** | Schema contracts with 12 quality-gate codes, quarantine on failure, synthetic panel generator with known ground truth, deterministic UCI augmentation with a declared assumption set |
-| **L1 Features** | 🟢 **Built & tested** | Point-in-time feature assembly with a proven leakage guarantee, right-censored Tobit demand un-censoring (removes 78% of censoring error on synthetic truth), cold-start elasticity priors from embedding neighbours |
-| **L4 Governance** | 🟢 **Built & tested** | All 9 guardrails, reason codes, structured verdicts, ladder feasibility filtering, degradation rungs 1/2/4, immutable decision-record contract |
-| L2 Estimation | 🟢 **Built & tested** | **Demand model built**: LightGBM quantile regression, conformalised so the 80% interval is honest out of sample (0.782–0.825 coverage). **Causal elasticity built**: cross-fitted partially-linear DML recovering known synthetic $eta$ inside its CI on 94.4% of SKUs and cutting elasticity error 83% versus naive regression; verified against `econml.LinearDML` to 6 decimal places. **Retention built**: Cox repurchase hazard fitted on GPU, recovering the generator's known theta (mean -1.18 vs true -1.20), with Delta-CLV and a sensitivity grid. **Competitor game built**: reaction function recovering a known response, long-run spiral coefficient, and a price-war verdict that distinguishes a real equilibrium from prices pinned to a guardrail |
-| L3 Decision | 🟢 **Built & tested** | Objective J(p) with lambda/gamma weights, candidate ladder snapped to publishable endings, Monte-Carlo simulation with common random numbers, CVaR shortfall, guardrail filtering and the immutable decision record. Category backtest beats cost-plus by 33.3% and competitor-match by 14.8% |
-| L5 Learning | 🟢 **Built & tested** | Switchback and geo-split assignment with recorded propensities, safe contextual bandit bounded by a pessimistic value floor and a cumulative risk budget, and IPS / SNIPS / doubly-robust off-policy evaluation that recovers a known policy value from synthetic logs |
-| L6 Serving | 🟢 **Built & tested** | FastAPI `/decide`, `/decide/batch`, `/health`; degradation rungs 1/2/4/5 exercised end to end; chaos test kills the model store and degrades to `CRITICAL_MAINTAIN_PREV` |
-| L7 Observability | 🟢 **Built & tested** | Reference-anchored PSI drift detection, the KPI computations from [docs/metrics.md](docs/metrics.md) including the CPPC headline, and circuit breakers that halt publication rather than notifying someone |
-| **Cross-cutting: parameter provenance** | 🟢 **Built & tested** | Every decision-path constant carries a source (literature / policy / technical), objective weights λ and γ solved from stated trades rather than chosen, sensitivity brackets on every policy dial, CI fails on an unsourced constant — see §8.2 |
-
-225 tests, property-based where the guarantee is universal and scored against known ground truth where it is statistical. Everything marked *spec only* is a design that has been thought through and written down, not code that runs. The roadmap in §9 is the build order.
-
-**Why governance first.** It is the layer where a defect is unrecoverable — a bad price publishes, transacts, and cannot be recalled — and it is the only layer that can be proven correct without any data at all.
-
-**Why the synthetic generator second.** It is the measuring instrument for everything after it. On real data a wrong elasticity and a right one look identical; against a known true parameter they do not. The generator confounds prices on purpose (a naive estimator is off by ~1.4) and censors demand on purpose, so each estimator has something real to prove.
+The repository includes model evaluation against synthetic data, price optimization with business guardrails, explainable decision records, a FastAPI pricing service, and a browser workbench. Validate models and policy settings against representative business data before using recommendations operationally.
 
 ---
 
@@ -91,9 +75,9 @@ for result in verdict.results:
 
 Boolean constraints (ladder compliance, fairness) report no `slack` — there is no meaningful distance to a threshold — which keeps `min_slack` describing the tightest *numeric* limit.
 
-### Modelling layers (GPU required)
+### Modelling layers
 
-The modelling extras are opt-in, and **the ML stack runs on GPU only** — see §8.1.
+The modelling extras are opt-in; see section 7.1 for per-component device requirements.
 
 ```bash
 pip install torch --index-url https://download.pytorch.org/whl/cu124
@@ -225,9 +209,9 @@ Point-in-time-correct feature assembly: trailing demand, price history, referenc
 ### L3 — Decision
 Generate a discrete candidate ladder (snapped to psychological price endings — real retail prices end .95/.99, and threshold effects are real). Monte-Carlo each candidate through the demand distribution. Handle **cross-price effects within category** so a discount on one SKU is not booked as a win when it merely cannibalised its neighbour.
 
-**Sequential markdown under elasticity ambiguity.** The DML elasticity estimator produces an interval, and the markdown DP historically took only its midpoint — planning a whole season as though a number with a median confidence interval of 0.88 on the real panel were exact. [`decision/robust_markdown.py`](src/prismprice/decision/robust_markdown.py) propagates the interval instead, through two Bellman operators: one taking a CVaR of *value* over the ambiguity set, one taking a CVaR of *regret*. The first is a strict generalisation of the existing solver — at `robustness_level=0` it reproduces `solve_markdown` to 2·10⁻¹¹ with an identical policy array — and it **loses**, for a reason worth reading about. The second was built in response and wins. See [docs/robust-markdown-evaluation.md](docs/robust-markdown-evaluation.md) for the gap in the literature, the method, and the measured results, including what had to be retracted.
+**Sequential markdown.** [`decision/robust_markdown.py`](src/prismprice/decision/robust_markdown.py) supports markdown planning under elasticity uncertainty using value- and regret-based CVaR objectives. See [docs/robust-markdown-evaluation.md](docs/robust-markdown-evaluation.md) for the method and evaluation results.
 
-### L4 — Governance  🟢 built
+### L4 Governance
 
 Guardrails, applied as a hard feasibility filter with a reason code on every rejection. All nine are implemented in [`governance/guardrails.py`](src/prismprice/governance/guardrails.py):
 
@@ -318,17 +302,30 @@ python -m prismprice.webapp
 
 Open <http://127.0.0.1:8000>. Enter product cost, current price, and optional
 market or stock context to request a recommendation. The workbench shows the
-candidate ladder, the selected decision rung, every returned guardrail result,
-and a downloadable JSON audit record. Interactive requests are evaluated by
-`POST /decide`; service status comes from `GET /health`.
+candidate ladder, the selected decision rung, each guardrail result, and a
+downloadable JSON audit record. Interactive requests use `POST /decide`; service
+status comes from `GET /health`.
 
-The launch command uses a deterministic **sample demand curve** so the UI works
-without fitted retail models. It is labelled in the workbench and is for
-exploration only; its recommendations are not trained, production or suitable
-for publishing. A deployed application should pass its fitted model-backed
-`DecisionService` into `prismprice.serving.app.create_app(service)`. That serves
-the same workbench against the supplied service, alongside `/decide`,
-`/decide/batch`, `/health`, and the FastAPI docs at `/docs`.
+The local command uses a deterministic **sample demand curve** for exploration.
+It listens on localhost, allows anonymous decisions, and exposes API docs; do
+not expose this demo server to the public internet.
+
+For a deployment, set a strong `PRISMPRICE_API_KEY` before creating the app and
+provide the permitted hostnames:
+
+```python
+from prismprice.serving.app import create_app
+
+app = create_app(service, trusted_hosts=["pricing.example.com"])
+```
+
+`POST /decide` and `POST /decide/batch` require the `X-API-Key` header.
+`GET /health` returns a limited readiness response; detailed diagnostics at
+`GET /internal/health` require the same key. API docs are disabled by default.
+Requests are limited to 256 KiB, batches to 100 items, and SKU identifiers to
+128 characters. Terminate TLS and configure rate limits at the deployment
+gateway. The browser workbench accepts an API key in its API access section and
+keeps it in the page only until refresh.
 
 `prismprice-web` is also installed as a command by `pip install -e
 ".[serving]"` and starts the same localhost demo.
@@ -359,41 +356,13 @@ as a file without a running application server.
 
 ---
 
-## 7. Repository layout
-
-**Target** layout. `🟢` exists today; the rest arrive with their phase in §9.
-
-```text
-prismprice/
-├── src/prismprice/
-│   ├── config.py       🟢 tolerances, governance defaults, policy dials
-│   ├── compute.py      🟢 GPU-only device policy (§8.1)
-│   ├── governance/     🟢 guardrails, reason codes, decision-record contracts
-│   ├── data/           🟢 schema contracts, quality gates, synthetic truth, UCI augmentation
-│   ├── features/       🟢 point-in-time assembly, Tobit un-censoring, cold-start priors
-│   ├── estimation/     🟡 demand (built); elasticity, survival CLV, competitor game to come
-│   ├── decision/       🟢 ladder, objective, engine, markdown MDP, robust/regret operators
-│   ├── learning/       ⚪ experiments, safe bandits, off-policy evaluation
-│   ├── api/            ⚪ FastAPI service
-│   └── cli/            ⚪ build / train / backtest / score
-├── tests/              🟢 unit, property, contract  (golden & backtest to come)
-├── docs/               🟢 architecture, data & modelling, metrics, playbooks, robust markdown
-├── .github/workflows/  🟢 CI: lint, types, tests on 3.10-3.12
-├── dashboards/         ⚪ Streamlit apps (exec, commercial, DS, eng)
-├── notebooks/          ⚪ exploratory analysis, kept out of the import path
-├── infra/              ⚪ Docker Compose, migrations
-└── artifacts/          ⚪ trained models, metrics, decision logs (gitignored)
-```
-
----
-
-## 8. Tech stack
+## 7. Tech stack
 
 | Concern | Choice | Why |
 | --- | --- | --- |
 | **Language** | Python 3.10+ | Ecosystem for stats + serving in one runtime |
 | **Core runtime** | Pydantic v2 *only* | The governance contracts need nothing else; the heavy stack is opt-in |
-| **Compute** | CUDA GPU, enforced | See §8.1 — no silent CPU fallback |
+| **Compute** | CUDA for Torch-backed components; backend-aware gradient boosting | See §7.1 |
 | **Modelling** | scikit-learn, LightGBM, EconML | Quantile regression, Double Machine Learning for causality |
 | **Survival** | scikit-survival / PyTorch | Deep proportional hazard modeling for dynamic $\Delta\text{CLV}$ |
 | **Serving** | FastAPI + Pydantic v2 | Typed contracts, generated OpenAPI docs |
@@ -403,7 +372,7 @@ prismprice/
 
 Dependencies are split into extras — `modelling`, `serving`, `dashboards`, `ops`, `dev` — so installing the governance layer does not pull three gigabytes of CUDA wheels.
 
-### 8.1 GPU compute policy
+### 7.1 GPU compute policy
 
 **Model training and batch inference run on GPU wherever the library supports it, and the device actually used is recorded either way.** The policy is enforced per library, because "does this machine have a GPU" and "was this library built to use it" are different questions with different fixes.
 
@@ -416,11 +385,9 @@ params = lightgbm_device_params("estimation.demand")    # boosting: best availab
 
 **Torch-backed components require CUDA.** Survival CLV, the embedding encoder, Monte-Carlo simulation and policy learning raise `GPUUnavailableError` rather than degrading. These are the workloads where a GPU is worth multiples of wall-clock time, and torch ships a CUDA build, so the requirement is one an operator can actually satisfy.
 
-**Gradient-boosting components use CUDA when the installed build provides it**, and otherwise train on CPU with a `RuntimeWarning` naming the specific reason. This is not a reproducibility hole: CPU histogram training is deterministic, `deterministic` and `force_row_wise` are set on both paths, and the device is written into the artefact — so the record still says what produced the number.
+**Gradient-boosting components use CUDA only when their installed build provides it**; otherwise they train on CPU with a `RuntimeWarning`. This is independent of PyTorch CUDA availability. The actual backend and device are recorded with each artefact.
 
-> **This was previously a blanket GPU-only rule, and it was wrong in a way worth recording.** `lightgbm_device_params()` asked *PyTorch* whether CUDA was available and then handed `device_type: cuda` to *LightGBM* — a separate library with its own build. Stock PyPI LightGBM wheels ship **without** the CUDA tree learner, so on a machine with a working CUDA PyTorch that combination fails at training time with `CUDA Tree Learner was not enabled in this build`. The bug was invisible only because a CPU-only PyTorch was masking it: *repairing the PyTorch install was what would have broken the demand model.* A blanket policy that can only be satisfied by setting the escape hatch on every machine is not a policy, it is a warning nobody reads.
-
-`compute_report()` returns the machine and each backend separately, because a green device with a red backend is precisely the state that used to be reported as "GPU enabled":
+`compute_report()` reports machine-level CUDA availability and support for each compute backend separately:
 
 ```jsonc
 {
@@ -434,7 +401,7 @@ params = lightgbm_device_params("estimation.demand")    # boosting: best availab
 
 `gpu_report()` still distinguishes the three device-level failure modes that otherwise look identical — torch missing, torch built without CUDA, CUDA present but no visible device — because each needs a different fix.
 
-The escape hatch `PRISMPRICE_ALLOW_CPU=1` downgrades the torch requirement to a warning, for CI runners and the pure-Python governance tests. It is set in [ci.yml](.github/workflows/ci.yml) and should never be set on a machine that produces prices.
+The `PRISMPRICE_ALLOW_CPU=1` override is intended for CI and CPU-only development. Leave it unset in production when using components that require CUDA.
 
 > **Install note.** The default PyPI `torch` wheel is CPU-only and will fail `require_gpu()`. Install from the CUDA index:
 > ```bash
@@ -444,11 +411,11 @@ The escape hatch `PRISMPRICE_ALLOW_CPU=1` downgrades the torch requirement to a 
 
 ---
 
-### 8.2 Parameter provenance
+### 7.2 Parameter provenance
 
 Every constant that can change a recommended price carries a record saying where it came from, declared in [`config.py`](src/prismprice/config.py) through [`provenance.register`](src/prismprice/provenance.py). CI fails if any decision-path constant is unsourced.
 
-The problem this solves is that a bare float is unfalsifiable — `0.15` looks identical whether it was elicited from a category owner or typed to make a test pass. Five kinds are kept apart:
+Each parameter is categorized by its source so operators can distinguish research evidence, business policy, technical constraints, placeholders, and measured values:
 
 | Kind | Meaning | Record must include |
 | --- | --- | --- |
@@ -458,46 +425,20 @@ The problem this solves is that a bare float is unfalsifiable — `0.15` looks i
 | `PLACEHOLDER` | Unsourced | Permitted outside the decision path; a CI failure inside it |
 | `MEASURED` | An estimate | **Rejected in configuration** — estimates belong in model artefacts |
 
-**The objective weights are solved, not chosen.** $\lambda$ and $\gamma$ were described in §2 as the dials that define a good price and existed nowhere in code. Neither can be estimated at any sample size, because both are exchange rates between things the business values differently. So each is derived from a stated trade:
+**Policy weights.** The transaction-versus-customer-value weight is derived from an explicit business trade-off. For example:
 
 ```python
 DEFAULT_CLV_WEIGHT_LAMBDA = lambda_from_tradeoff(margin_sacrificed=0.30, clv_gained=1.00)
 ```
 
-Nobody has a calibrated intuition for "λ = 0.30", but a category owner can answer *"how much margin today would you give up for 1.00 of modelled future customer value?"* — and an answer well below 1.0 is itself information: it prices trust in the CLV model, not only commercial strategy. Every `POLICY` value ships with a sensitivity bracket rather than as a point estimate, and `frontier()` sweeps it, because a dial whose bracket does not change the recommendation is not load-bearing and one whose bracket flips it must be elicited locally.
+Policy values include sensitivity brackets so their effect on recommendations can be evaluated. Synthetic-data priors are documented separately from production decision parameters.
 
-**Generator priors are quarantined from the decision path.** The synthetic elasticity prior $eta \sim \mathcal{N}(-1.8, 0.4)$ sits essentially on the Tellis (1988) meta-analytic mean of −1.76 and is deliberately conservative against the larger Bijmolt et al. (2005) mean of −2.62 over 1,851 elasticities from 81 studies. A smaller true elasticity is the harder test, since it is easier for a naive estimator to confuse with confounding.
-
-**One parameter is labelled unsourced, on purpose.** The repurchase-hazard sensitivity $	heta = -1.2$ is invented. The obvious literature to reach for is loss aversion, whose meta-analytic asymmetry coefficient sits nearer 1.25–1.45 than the folk value of 2 — but that describes the relative weight of losses and gains in a choice utility, which is a *different quantity* from a proportional hazard multiplier on repurchase timing. Citing it would be false precision. It is identifiable from real repurchase panels and is scheduled for estimation in phase 4; until then it reads `PLACEHOLDER` and prints `<-- UNSOURCED` in `describe()`.
+**Calibration requirement.** The repurchase-hazard sensitivity currently uses a placeholder value of `-1.2`. Calibrate it against representative repurchase data before using CLV-based recommendations operationally.
 
 
 ---
 
-## 9. Build roadmap
-
-Each phase ends with something that runs, is tested, and is pushed.
-
-Governance (phase 6) was built first, out of order, for the reason given in §0.
-
-| Phase | Status | Delivers | Done when |
-| --- | --- | --- | --- |
-| **0 Foundation** | 🟢 done | Repo, CI, config, compute policy, packaging | `pytest` green in CI on push |
-| **6 Governance** | 🟢 done | All 9 guardrails, reason codes, audit contracts | Property tests prove guardrails never violated |
-| **1 Data & Features** | 🟢 done | Contracts, quality gates, synthetic truth, un-censoring, cold-start priors, leakage tests | Quality report generated; leakage test passes; un-censoring beats the naive series on known truth |
-| **2 Demand** | 🟢 done | Quantile demand model + conformal calibration | Rolling-origin p10/p90 interval coverage within ±3pp |
-| **P Provenance** | 🟢 done | Sourced constants, objective weights lambda/gamma, per-library GPU probe | CI audit finds no unsourced decision-path constant |
-| **3 Causal Elasticity** | 🟢 done | Cross-fitted DML, temporal folds, repeated aggregation, confidence tagging | Recovers known true elasticity within CI on 94.4% of SKUs |
-| **4 Retention** | 🟢 done | Time-varying repurchase hazard + $\Delta\text{CLV}$ | Cohort curves reproduce holdout |
-| **5 Decision** | 🟢 done | Category solver, CVaR penalty, Monte-Carlo | Beats cost-plus and competitor-match on backtest |
-| **7 Serving** | 🟢 done | API + batch + degradation matrix | Contract tests + chaos test on model outage |
-| **8 Learning** | 🟢 done | Safe bandits, OPE, designed experiments | OPE recovers known policy value on synthetic data |
-| **9 Ambiguity** | 🟢 done | Elasticity interval propagated into the markdown DP; value-CVaR and regret-CVaR Bellman operators, domain-randomised multi-SKU training | `robustness_level=0` reproduces the classical DP exactly; regret operator cuts worst-case-over-interval regret on 72% of synthetic and 80% of real decision-relevant SKUs ([docs](docs/robust-markdown-evaluation.md)) |
-
-Validating each model against **synthetic data with known ground truth** before trusting it on real data is what separates this from a project that merely produces plausible numbers.
-
----
-
-## 10. Honest limitations
+## 8. Honest limitations
 
 Stated plainly, because a buyer or reviewer will find them anyway and the credibility is worth more than the claim.
 
@@ -512,7 +453,7 @@ Stated plainly, because a buyer or reviewer will find them anyway and the credib
 
 ---
 
-## 11. Licence
+## 9. Licence
 
 **[Business Source License 1.1](LICENSE)** — source-available, not OSI open source.
 
