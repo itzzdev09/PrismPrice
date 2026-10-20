@@ -17,6 +17,10 @@ const promoField = form.elements.namedItem("min_price_last_30d");
 let hasDecision = false;
 let healthSequence = 0;
 
+function decisionInputsSnapshot() {
+  return JSON.stringify([...new FormData(form).entries()].filter(([name]) => name !== "api_key"));
+}
+
 export async function refreshServiceState() {
   const sequence = ++healthSequence;
   serviceState.className = "service-state loading";
@@ -80,6 +84,7 @@ async function submitDecision(event) {
     showError(problem.message);
     return;
   }
+  const submittedInputs = decisionInputsSnapshot();
 
   submit.disabled = true;
   submit.setAttribute("aria-busy", "true");
@@ -91,6 +96,7 @@ async function submitDecision(event) {
     const decision = await requestDecision(body, apiKey);
     renderDecision(decision, result);
     hasDecision = true;
+    staleNotice.hidden = decisionInputsSnapshot() === submittedInputs;
     panel.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
   } catch (problem) {
     result.replaceChildren();

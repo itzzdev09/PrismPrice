@@ -85,7 +85,6 @@
 .result-empty h3 { margin: 0; font-size: 21px; font-weight: 630; letter-spacing: -.045em; line-height: 1.2; }
 .result-empty > p:not(.eyebrow) { max-width: 295px; margin: 11px 0 22px; color: var(--ink-tertiary); font-size: 12px; line-height: 1.7; }
 .empty-hint { color: var(--ink-tertiary); font-size: 10px; }
-kbd { padding: 2px 5px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--surface); font: inherit; }
 .principles-section { padding-top: 116px; }
 .compact-heading { margin-bottom: 26px; }
 .principles-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
