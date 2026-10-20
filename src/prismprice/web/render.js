@@ -19,26 +19,35 @@ const rungNames = {
 };
 
 function candidateChart(record, target) {
-  const candidates = [...(record.candidates || [])].sort((a, b) => a.price - b.price);
+  const candidates = [...record.candidates].sort((a, b) => a.price - b.price);
   const heading = element("div", "result-block-heading");
   heading.append(element("h4", "", "Candidate ladder"));
-  heading.append(element("span", "", `${candidates.length} prices scored`));
+  const count = element("span", "", `${candidates.length} prices · bar scaled to J score`);
+  count.title = "Bar length compares objective scores within this candidate ladder.";
+  heading.append(count);
   target.append(heading);
   const list = element("div", "candidate-list");
   if (!candidates.length) {
     list.append(element("p", "result-warning", "No candidates were scored. PrismPrice kept the current price because the decision model was unavailable."));
   }
   const scores = candidates.map((candidate) => candidate.j_score);
-  const low = Math.min(...scores), high = Math.max(...scores);
+  const low = Math.min(...scores);
+  const high = Math.max(...scores);
   candidates.forEach((candidate) => {
     const row = element("div", `candidate-row${candidate.price === record.recommended_price ? " selected" : ""}`);
     row.append(element("span", "candidate-price", money(candidate.price)));
     const track = element("div", "candidate-track");
+    const relativeScore = high === low ? 1 : (candidate.j_score - low) / (high - low);
+    track.setAttribute("role", "img");
+    track.setAttribute("aria-label", `Relative objective score: ${number(relativeScore * 100)} percent within this ladder`);
     const fill = element("div", "candidate-fill");
-    const width = high === low ? 82 : 18 + ((candidate.j_score - low) / (high - low)) * 76;
-    fill.style.width = `${width}%`;
+    fill.style.width = `${relativeScore * 100}%`;
     track.append(fill);
     row.append(track);
+    const score = element("span", "candidate-score", money(candidate.j_score));
+    score.title = `Objective J score; tail risk (CVaR) ${money(candidate.cvar)}`;
+    score.setAttribute("aria-label", `Objective J score ${money(candidate.j_score)}`);
+    row.append(score);
     row.append(element("span", `candidate-state${candidate.feasible ? "" : " blocked"}`, candidate.feasible ? "Eligible" : "Blocked"));
     list.append(row);
   });
@@ -64,7 +73,7 @@ function guardrailList(record, target) {
 }
 
 export function renderDecision(payload, target) {
-  const record = payload.record;
+  const record = validatedRecord(payload);
   const code = record.degradation_reason_code;
   const [verdict, tone] = rungNames[code] || [code.replaceAll("_", " "), "warn"];
   const change = (record.recommended_price / record.inputs.current_price) - 1;
@@ -121,7 +130,44 @@ function downloadRecord(record) {
   const url = URL.createObjectURL(blob);
   const link = element("a", "", "");
   link.href = url;
-  link.download = `prismprice-${record.sku}-${record.decision_id.slice(0, 8)}.json`;
+  const safeSku = record.sku.replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "item";
+  link.download = `prismprice-${safeSku}-${record.decision_id.slice(0, 8)}.json`;
+  link.hidden = true;
+  document.body.append(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function validatedRecord(payload) {
+  const record = payload?.record;
+  const validNumber = (value) => typeof value === "number" && Number.isFinite(value);
+  if (!record || typeof record !== "object"
+    || typeof record.sku !== "string"
+    || typeof record.decision_id !== "string"
+    || typeof record.degradation_reason_code !== "string"
+    || !Number.isInteger(record.degradation_rung) || record.degradation_rung < 1 || record.degradation_rung > 5
+    || !record.inputs || !validNumber(record.inputs.current_price) || record.inputs.current_price <= 0
+    || !validNumber(record.recommended_price) || record.recommended_price <= 0
+    || !Array.isArray(record.candidates) || !Array.isArray(record.guardrail_results)
+    || typeof record.policy_version !== "string" || !validNumber(record.seed)) {
+    throw new Error("The pricing API response is missing required decision details. No recommendation was displayed.");
+  }
+  if (!record.candidates.every((candidate) => candidate
+    && validNumber(candidate.price) && candidate.price > 0
+    && validNumber(candidate.j_score) && validNumber(candidate.cvar)
+    && typeof candidate.feasible === "boolean")) {
+    throw new Error("The pricing API returned an incomplete candidate ladder. No recommendation was displayed.");
+  }
+  if (!record.guardrail_results.every((check) => check
+    && typeof check.constraint_name === "string"
+    && typeof check.detail === "string"
+    && ["PASSED", "FAILED", "NOT_APPLICABLE"].includes(check.status))) {
+    throw new Error("The pricing API returned incomplete guardrail results. No recommendation was displayed.");
+  }
+  const quantiles = record.estimates?.demand_quantiles;
+  if (quantiles && ![quantiles.p10, quantiles.p50, quantiles.p90].every(validNumber)) {
+    throw new Error("The pricing API returned invalid demand estimates. No recommendation was displayed.");
+  }
+  return record;
 }

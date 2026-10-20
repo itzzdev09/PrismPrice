@@ -1,3 +1,5 @@
+.skip-link { position: fixed; z-index: 40; top: 12px; left: 12px; padding: 10px 14px; border-radius: 10px; background: var(--ink); color: var(--surface); transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); }
 .page-wrap { width: min(var(--content-width), calc(100% - 64px)); margin-inline: auto; }
 .topbar {
   position: sticky; z-index: 20; top: 0; display: flex; align-items: center; justify-content: space-between;

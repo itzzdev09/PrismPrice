@@ -18,6 +18,7 @@
   .navigation { gap: 16px; }.navigation a { font-size: 11px; }
   .navigation a:last-child { display: none; }
   .top-actions { gap: 11px; }.service-state { gap: 6px; font-size: 0; }.service-state .status-dot { width: 8px; height: 8px; }
+  .service-retry { padding: 5px 8px; font-size: 9px; }
   .hero { grid-template-columns: 1fr; padding-top: 66px; }
   .hero-copy { padding-bottom: 0; }.hero h1 { font-size: clamp(53px, 12vw, 75px); }
   .hero-intro { max-width: 460px; font-size: 14px; }
@@ -50,5 +51,7 @@
   .field-row { grid-template-columns: 1fr; gap: 0; }.principles-grid { grid-template-columns: 1fr 1fr; }
   .principle-card { min-height: 220px; }.guardrail-list { grid-template-columns: 1fr; }
   .guardrail-row { grid-template-columns: 18px 1fr; }.guardrail-detail { grid-column: 2; }
+  .candidate-row { grid-template-columns: 43px minmax(24px, 1fr) 61px auto; gap: 6px; }
+  .candidate-score { font-size: 8px; }
   .result-stats { gap: 5px; }.result-stat { padding: 10px 8px; }.result-stat strong { font-size: 12px; }
 }

@@ -13,6 +13,7 @@
   <script type="module" src="/assets/app.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="topbar">
     <a class="brand" href="#top" aria-label="PrismPrice home">
       <span class="brand-mark" aria-hidden="true">P</span><span>PrismPrice</span>
@@ -22,15 +23,16 @@
       <a href="#guardrails">Guardrails</a>
     </nav>
     <div class="top-actions">
-      <span class="service-state" id="service-state"><span class="status-dot"></span>Checking service</span>
-      <button class="icon-button" id="theme-toggle" type="button" aria-label="Toggle color theme">
+      <span class="service-state loading" id="service-state" role="status" aria-live="polite" aria-atomic="true"><span class="status-dot" aria-hidden="true"></span><span id="service-label">Checking service</span></span>
+      <button class="service-retry" id="service-retry" type="button" hidden>Retry</button>
+      <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch appearance">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42m0-12.72-1.42 1.42m-9.88 9.88-1.42 1.42M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg>
       </button>
     </div>
   </header>
 
-  <main id="top">
-    <section class="hero page-wrap" aria-labelledby="hero-title">
+  <main id="main-content">
+    <section class="hero page-wrap" id="top" aria-labelledby="hero-title">
       <div class="hero-copy">
         <p class="eyebrow"><span class="sparkle">✳</span> Decision intelligence for modern retail</p>
         <h1 id="hero-title">A better price<br>starts with <span>better<br>questions.</span></h1>
@@ -95,12 +97,13 @@
               <label class="field"><span>API key <small>only if required</small></span><input name="api_key" type="password" maxlength="512" autocomplete="off" placeholder="X-API-Key"></label>
               <p class="form-note">Sent with this decision request and kept only in this page until it is refreshed.</p>
             </details>
-            <p class="form-error" id="form-error" role="alert" hidden></p>
+            <p class="form-error" id="form-error" role="alert" tabindex="-1" hidden></p>
             <button class="button button-primary submit-button" id="submit-button" type="submit">Find a safe price <span aria-hidden="true">↗</span></button>
             <p class="form-note">Decision support only. Prices are never published automatically.</p>
           </form>
 
           <section class="decision-panel" id="decision-panel" aria-label="Recommendation results" aria-live="polite">
+            <p class="result-stale" id="result-stale" role="status" hidden>Inputs changed since this decision. Run the workbench again to update the recommendation.</p>
             <div class="result-empty" id="result-empty">
               <div class="empty-glyph" aria-hidden="true"><span></span><span></span><span></span></div>
               <p class="eyebrow">Ready when you are</p><h3>Your next decision<br>begins here.</h3>
@@ -140,6 +143,6 @@
     </section>
     <section class="closing page-wrap"><p class="eyebrow">A clearer way to price</p><h2>Good decisions<br>leave a trail.</h2><a class="button button-dark" href="#workbench">Make your first decision <span aria-hidden="true">↗</span></a></section>
   </main>
-  <footer class="site-footer page-wrap"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">P</span><span>PrismPrice</span></a><p>Decision support, with the reasoning built in.</p><div><a href="https://github.com/itzzdev09/PrismPrice">GitHub ↗</a><a href="/docs">API docs ↗</a></div></footer>
+  <footer class="site-footer page-wrap"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">P</span><span>PrismPrice</span></a><p>Decision support, with the reasoning built in.</p><div><a href="https://github.com/itzzdev09/PrismPrice">GitHub ↗</a><a href="https://github.com/itzzdev09/PrismPrice/blob/main/docs/architecture.md">Architecture ↗</a></div></footer>
 </body>
 </html>
