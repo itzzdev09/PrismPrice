@@ -31,13 +31,13 @@ class RequestBodyLimitMiddleware:
             try:
                 declared_length = int(content_length)
             except ValueError:
-                await self._respond(send, 400, b'{"detail":"Invalid Content-Length"}')
+                await self._respond(scope, send, 400, b'{"detail":"Invalid Content-Length"}')
                 return
             if declared_length < 0:
-                await self._respond(send, 400, b'{"detail":"Invalid Content-Length"}')
+                await self._respond(scope, send, 400, b'{"detail":"Invalid Content-Length"}')
                 return
             if declared_length > self.max_bytes:
-                await self._respond(send, 413, b'{"detail":"Request body too large"}')
+                await self._respond(scope, send, 413, b'{"detail":"Request body too large"}')
                 return
 
         chunks: list[bytes] = []
@@ -51,7 +51,7 @@ class RequestBodyLimitMiddleware:
             body = message.get("body", b"")
             size += len(body)
             if size > self.max_bytes:
-                await self._respond(send, 413, b'{"detail":"Request body too large"}')
+                await self._respond(scope, send, 413, b'{"detail":"Request body too large"}')
                 return
             chunks.append(body)
             if not message.get("more_body", False):
@@ -70,16 +70,18 @@ class RequestBodyLimitMiddleware:
         await self.app(scope, replay_body, send)
 
     @staticmethod
-    async def _respond(send: Send, status: int, body: bytes) -> None:
+    async def _respond(scope: Scope, send: Send, status: int, body: bytes) -> None:
+        headers = [
+            (b"content-type", b"application/json"),
+            (b"content-length", str(len(body)).encode("ascii")),
+        ]
+        if scope.get("http_version") in {"1.0", "1.1"}:
+            headers.append((b"connection", b"close"))
         await send(
             {
                 "type": "http.response.start",
                 "status": status,
-                "headers": [
-                    (b"content-type", b"application/json"),
-                    (b"content-length", str(len(body)).encode("ascii")),
-                    (b"connection", b"close"),
-                ],
+                "headers": headers,
             }
         )
         await send({"type": "http.response.body", "body": body})

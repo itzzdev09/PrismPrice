@@ -26,7 +26,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from prismprice.governance.schemas import PriceRequest
 from prismprice.serving.service import DecisionService
@@ -50,7 +50,7 @@ class BatchRequest(BaseModel):
     synchronously, so an unbounded list is a request that never returns.
     """
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     requests: list[PriceRequest] = Field(..., min_length=1, max_length=100)
 
@@ -126,11 +126,11 @@ def create_app(
 
     @application.get("/health")
     def health() -> dict[str, Any]:
-        report = service.health()
+        available = service.model_store_available()
         return {
-            "healthy": report.healthy,
-            "model_store_available": report.model_store_available,
-            "policy_version": report.policy_version,
+            "healthy": available,
+            "model_store_available": available,
+            "policy_version": service.engine.policy_version,
         }
 
     @application.get("/internal/health", dependencies=[Depends(require_api_key)])

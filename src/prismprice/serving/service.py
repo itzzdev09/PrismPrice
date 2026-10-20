@@ -110,11 +110,7 @@ class DecisionService:
     def health(self) -> ServiceHealth:
         from prismprice.compute import compute_report
 
-        available = True
-        try:
-            self.store.model_versions()
-        except ModelStoreUnavailable:
-            available = False
+        available = self.model_store_available()
 
         return ServiceHealth(
             healthy=available,
@@ -122,6 +118,14 @@ class DecisionService:
             policy_version=self.engine.policy_version,
             compute=compute_report(),
         )
+
+    def model_store_available(self) -> bool:
+        """Probe model availability without collecting compute diagnostics."""
+        try:
+            self.store.model_versions()
+        except ModelStoreUnavailable:
+            return False
+        return True
 
     def _maintain_previous(self, request: PriceRequest) -> DecisionOutcome:
         """Rung 5: hold the current price and record why.

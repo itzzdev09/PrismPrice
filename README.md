@@ -132,7 +132,7 @@ Where:
 
 1. **Optimise expected profit, not profit at expected demand.** Profit is non-linear in demand once inventory caps and stockouts bind, so by Jensen's inequality these are different prices — and the gap systematically biases toward over-aggressive pricing. PrismPrice samples the demand distribution per candidate price and selects on the resulting profit distribution.
 2. **Causal Elasticity over Correlation.** The system isolates true price response using Double Machine Learning (DML) to control for confounding variables (e.g., seasonality, promo calendars) that typically ruin observational elasticity estimates.
-3. **Elasticity is estimated, never supplied.** The system produces its own elasticity with a confidence interval and a method tag. Callers may override it, but the default is that the system knows. Anything else moves the hard part of the problem onto the caller.
+3. **Elasticity is model output, not a request field.** Price requests do not accept a caller-supplied elasticity coefficient.
 
 ---
 
@@ -142,7 +142,7 @@ Where:
 ┌──────────────────────────────────────────────────────────────────────────┐
 │  L7  OBSERVABILITY        KPIs · dashboards · drift · alerts · SLOs       │
 ├──────────────────────────────────────────────────────────────────────────┤
-│  L6  SERVING              REST API · batch scoring · price feed export    │
+│  L6  SERVING              REST API · batch scoring · decision records    │
 ├──────────────────────────────────────────────────────────────────────────┤
 │  L5  LEARNING             experiments · safe bandits · off-policy eval    │
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -201,7 +201,7 @@ Point-in-time-correct feature assembly: trailing demand, price history, referenc
 - **Cold Start Embeddings** — uses LLM text/visual embeddings (CLIP/BERT) to map new SKUs to historical priors of nearest-neighbor items.
 
 ### L2 — Estimation
-- **Demand model** 🟢 — gradient-boosted quantile regression producing p10/p50/p90, not a point. Conformalised per tail so the interval is honest on held-out data; monotone in price by isotonic projection on the ladder.
+- **Demand model**: gradient-boosted quantile regression produces p10/p50/p90 demand estimates. Conformal calibration measures interval coverage on held-out data; isotonic projection preserves price monotonicity.
 - **Causal Elasticity model** — Double Machine Learning (DML) / Orthogonal R-Learner that disentangles price from promotional confounders, returning a causal CI and confidence tag.
 - **Retention & CLV model** — Deep Survival model (e.g., Cox Proportional Hazards) with time-varying covariates. Attributes churn risk strictly to the price-vs-reference shock, supplying $\Delta\text{CLV}(p)$.
 - **Competitor model** — estimates competitor reaction functions (Game-Theoretic Response) to prevent destructive algorithmic price wars.
@@ -236,13 +236,13 @@ Three properties make this more than a list of `if` statements:
 Plus an immutable decision log: inputs, model versions, candidate scores, binding constraints, seed, final price, approver.
 
 ### L5 — Learning
-The honest answer to "you cannot get causal elasticity from observational data" is not to document the limitation — it is to build the mechanism that earns it.
+Double Machine Learning controls for recorded confounders, but unobserved confounders can still bias elasticity estimates.
 - **Designed experiments** — switchback and store/geo splits by SKU-category.
 - **Safe Contextual Bandits** — exploration with hard lower bounds, ensuring expected rewards never fall below $(1 - \alpha)$ of the baseline policy, explicitly budgeting exploration risk.
 - **Off-policy evaluation** — inverse propensity scoring and doubly-robust estimates, so a candidate policy is scored against logged decisions before it ships.
 
 ### L6 — Serving
-FastAPI decision endpoint, batch scoring for full catalogue refresh, and a price feed export. Idempotent by `(sku, date, policy_version)`.
+FastAPI endpoints serve single and bounded batch decisions; the browser workbench uses the same API. External integrations handle any price publication.
 
 ### L7 — Observability
 KPIs, dashboards, feature/prediction drift, and alerting. See §6.
@@ -255,15 +255,16 @@ A pricing system that is wrong is worse than one that is down — a bad price is
 
 ### Degradation Matrix
 
-The system always returns a price, and always documents which rung it used:
+The API reports these decision states in each audit record:
 
-| Level | Condition / Trigger | Action Taken | Governance Reason Code | Built |
-| --- | --- | --- | --- | --- |
-| **1** | Full health | Optimal portfolio decision | `OK_OPTIMAL` | 🟢 |
-| **2** | Stale competitor feed | Widen movement bound $\delta$ to limit exposure | `WARN_STALE_COMPETITOR` | 🟢 detection |
-| **3** | Elasticity CI width $> \tau_{\max}$ | Fall back to category pooled mean elasticity | `FALLBACK_POOLED_ELASTICITY` | ⚪ needs L2 |
-| **4** | Solver / MC non-convergent, or empty feasible set | Rule-based anchor (Cost-plus + competitor band) | `FALLBACK_RULE_ENGINE` | 🟢 empty-set path |
-| **5** | Total model failure / 5xx | Return last known good price or $p_{\text{prev}}$ | `CRITICAL_MAINTAIN_PREV` | ⚪ needs L6 |
+| Level | Condition / Trigger | Action Taken | Governance Reason Code |
+| --- | --- | --- | --- |
+| **1** | Inputs and models available; no stale competitor feed | Return the highest-scoring feasible candidate | `OK_OPTIMAL` |
+| **2** | Competitor observation is stale | Continue with an explicit stale-data warning | `WARN_STALE_COMPETITOR` |
+| **4** | No feasible candidate | Hold the current price and record the fallback | `FALLBACK_RULE_ENGINE` |
+| **5** | Model store is unavailable | Hold the current price and record the outage | `CRITICAL_MAINTAIN_PREV` |
+
+`FALLBACK_POOLED_ELASTICITY` is reserved in the reason-code contract; the serving path currently emits levels 1, 2, 4, and 5.
 
 The rung is derived from the reason code rather than stored alongside it, so the number and the code cannot disagree in an audit record.
 
@@ -272,7 +273,7 @@ The rung is derived from the reason code rather than stored alongside it, so the
 - **Deterministic** — same inputs + same model versions + same seed $\Rightarrow$ same output, byte for byte. Non-negotiable for auditability.
 - **Shadow $\to$ canary $\to$ rollout** — every policy change runs in shadow against live traffic, then on a small SKU slice, before broad release.
 - **Immutable audit** — every decision reconstructible months later, including the exact model artefacts.
-- **Circuit breakers** — abnormal recommendation distributions (mass movement in one direction) halt publication and page a human.
+- **Circuit breakers**: abnormal recommendation distributions can mark a batch as not cleared for publication.
 - **Blast-radius limits** — caps on how many SKUs may change per run and on aggregate basket-level price movement.
 
 ---
@@ -310,8 +311,8 @@ The local command uses a deterministic **sample demand curve** for exploration.
 It listens on localhost, allows anonymous decisions, and exposes API docs; do
 not expose this demo server to the public internet.
 
-For a deployment, set a strong `PRISMPRICE_API_KEY` before creating the app and
-provide the permitted hostnames:
+For a deployment, set a strong `PRISMPRICE_API_KEY` of at least 32 characters
+before creating the app. Also provide the permitted hostnames:
 
 ```python
 from prismprice.serving.app import create_app
@@ -322,8 +323,8 @@ app = create_app(service, trusted_hosts=["pricing.example.com"])
 `POST /decide` and `POST /decide/batch` require the `X-API-Key` header.
 `GET /health` returns a limited readiness response; detailed diagnostics at
 `GET /internal/health` require the same key. API docs are disabled by default.
-Requests are limited to 256 KiB, batches to 100 items, and SKU identifiers to
-128 characters. Terminate TLS and configure rate limits at the deployment
+POST request bodies are limited to 256 KiB, batches to 100 items, and SKU
+identifiers to 128 characters. Terminate TLS and configure rate limits at the deployment
 gateway. The browser workbench accepts an API key in its API access section and
 keeps it in the page only until refresh.
 
@@ -366,7 +367,7 @@ as a file without a running application server.
 | **Modelling** | scikit-learn, LightGBM, EconML | Quantile regression, Double Machine Learning for causality |
 | **Survival** | scikit-survival / PyTorch | Deep proportional hazard modeling for dynamic $\Delta\text{CLV}$ |
 | **Serving** | FastAPI + Pydantic v2 | Typed contracts, generated OpenAPI docs |
-| **Storage** | DuckDB (local) $\to$ Postgres (deployed) | Same SQL both ways; no rewrite to productionise |
+| **Storage** | DuckDB for local analytical storage | Hosted database integration is not included |
 | **Ops/Audit** | MLflow, Prefect, Docker | Model versions, batch refresh, one-command start |
 | **Quality** | pytest, Hypothesis, ruff, mypy --strict | Property tests are the right tool for guardrails |
 
@@ -399,7 +400,7 @@ params = lightgbm_device_params("estimation.demand")    # boosting: best availab
 }
 ```
 
-`gpu_report()` still distinguishes the three device-level failure modes that otherwise look identical — torch missing, torch built without CUDA, CUDA present but no visible device — because each needs a different fix.
+`gpu_report()` reports whether PyTorch is installed, whether its build includes CUDA, and whether a CUDA device is visible to the process.
 
 The `PRISMPRICE_ALLOW_CPU=1` override is intended for CI and CPU-only development. Leave it unset in production when using components that require CUDA.
 
@@ -438,18 +439,17 @@ Policy values include sensitivity brackets so their effect on recommendations ca
 
 ---
 
-## 8. Honest limitations
+## 8. Operational limitations
 
-Stated plainly, because a buyer or reviewer will find them anyway and the credibility is worth more than the claim.
-
-- **No database exists, and no real data has run through the system.** `duckdb` is an optional dependency that is imported nowhere; the storage row in §8 is intent. `normalise_uci()` takes a dataframe the caller supplies — there is no downloader and no cached extract — so every measured figure in this README (un-censoring recovery, interval coverage) is measured against the synthetic generator, whose ground truth we chose ourselves.
-- **Most of this is specification, not code.** See §0. The objective function, the estimators and the serving layer are designed and documented; they are not written. Treat every present-tense description of L0–L3 and L5–L7 as intent.
-- **Unobserved Confounders.** While Double Machine Learning handles observed confounders (seasonality, promo flags) better than raw regression, unrecorded variables (e.g., a competitor running an un-tracked radio ad) will still bias elasticity estimates.
-- **The public UCI dataset has no cost, inventory, or competitor columns.** Margin requires an assumed cost model, and those assumptions are declared in [docs/data-and-modelling.md](docs/data-and-modelling.md), not buried.
-- **The policy dials are repo defaults, not this business's answers.** Margin floor, movement cap, competitor ceiling, lambda and gamma are all `POLICY` values carrying `requires_local_elicitation=True`. They are defensible starting points with the trade they encode written down; they are not elicited from any real operator, and running them unchanged means accepting someone else's commercial preferences.
-- **$\Delta\text{CLV}$ is a modelled quantity**, sensitive to the discount rate and horizon. Both are explicit configuration, and the dashboards show sensitivity bands rather than a single number.
-- **Fairness here means non-discrimination in price setting.** `PP-G009` proves the decision context is identity-free; it does not prove outcomes are equitable. It is not a full algorithmic-fairness audit, and its proxy denylist is a judgement call, not a legal standard.
-- **The inventory guard is only as good as $\nu$.** With no shadow price supplied it degrades to the absolute floor, and says so in its own detail string rather than pretending to bind.
+- **Real-world validation is still needed.** Evaluation metrics in this repository use synthetic data. Validate demand, elasticity, and CLV models against representative transaction and customer data before relying on their recommendations.
+- **Input data has limits.** The UCI Online Retail dataset does not include unit costs, inventory, or competitor prices. Those inputs must come from the retailer's own systems or documented assumptions.
+- **Data ingestion uses supplied datasets.** The project includes validation and preprocessing, but does not provide automated downloads from source systems.
+- **Storage is local.** The implemented store uses DuckDB. A hosted database adapter and production deployment are not included.
+- **Policy values need local review.** Margin floors, movement caps, competitor ceilings, and objective weights are documented defaults, not business-specific approvals.
+- **CLV is modelled.** Its estimate depends on the discount rate, horizon, and repurchase-hazard calibration; inspect the sensitivity results before using it in decisions.
+- **Fairness checks are limited.** The protected-data guardrail checks decision inputs; it does not establish equitable outcomes or replace a full fairness review.
+- **Inventory protection depends on its shadow price.** Without a supplied inventory opportunity cost, the guardrail can enforce only the configured absolute floor.
+- **Deployment credentials are shared API keys.** This is suitable for trusted integrations. A browser user can inspect credentials they enter, so use an identity-aware access layer for untrusted or multi-user public access. Terminate TLS and apply rate limits at the gateway.
 
 ---
 
