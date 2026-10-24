@@ -428,16 +428,22 @@ class PriceStore:
 
     def batches(self) -> pd.DataFrame:
         """Ingest history, newest first. The lineage record."""
-        return self._connection.execute(
+        result = self._connection.execute(
             "SELECT batch_id, source, ingested_at, rows_offered, rows_written, "
             "rows_duplicate, passed FROM ingest_batches ORDER BY ingested_at DESC"
-        ).df()
+        )
+        # DuckDB's pandas adapter currently uses deprecated pandas APIs when a
+        # BOOLEAN column is present. Batch history is small, so materialise its
+        # rows through pandas' stable constructor instead of that adapter.
+        columns = [column[0] for column in result.description]
+        return pd.DataFrame.from_records(result.fetchall(), columns=columns)
 
     def summary(self) -> dict[str, Any]:
         """Row counts and date span, for a load to be checkable at a glance."""
-        span = self._connection.execute(
+        span_rows = self._connection.execute(
             "SELECT min(invoice_ts), max(invoice_ts) FROM transactions"
-        ).fetchone()
+        ).fetchall()
+        span = span_rows[0] if span_rows else None
         return {
             "path": self.path,
             "transactions": self._scalar("SELECT count(*) FROM transactions"),

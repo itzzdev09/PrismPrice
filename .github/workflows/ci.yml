@@ -53,9 +53,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev,modelling,serving]"
-          # Hosted runners may start with an outdated setuptools that pip-audit
-          # flags even though PrismPrice does not depend on that copy.
-          python -m pip install --upgrade "setuptools>=84.1.0"
+          # Hosted runners may start with outdated bootstrap packages that
+          # pip-audit flags even though PrismPrice does not depend on those copies.
+          python -m pip install --upgrade "setuptools>=84.1.0" "filelock>=4.2.1"
 
       - name: Audit Python dependencies
         run: |

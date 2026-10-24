@@ -224,8 +224,8 @@ class FeatureBuilder:
             min_price_last_30d=omnibus_min,
             price_changes_28d=price_changes,
             week_of_year=int(cutoff.isocalendar().week),
-            day_of_week=int(cutoff.dayofweek),
-            is_weekend=float(cutoff.dayofweek >= 5),
+            day_of_week=int(cutoff.day_of_week),
+            is_weekend=float(cutoff.day_of_week >= 5),
             holiday_proximity=float(
                 np.exp(-min(abs(day_of_year - 359), 365 - abs(day_of_year - 359)) / 14.0)
             ),

@@ -104,7 +104,7 @@ def _build_confounders(dates: pd.DatetimeIndex, rng: np.random.Generator) -> pd.
     DML validation in Phase 3 meaningless.
     """
     day_of_year = dates.day_of_year.to_numpy()
-    day_of_week = dates.dayofweek.to_numpy()
+    day_of_week = dates.day_of_week.to_numpy()
 
     yearly = np.sin(2 * np.pi * day_of_year / 365.25)
     weekly = (day_of_week >= 5).astype(float)

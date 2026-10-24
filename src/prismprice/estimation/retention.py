@@ -61,8 +61,9 @@ number here would imply a precision the model does not have.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -407,7 +408,8 @@ class CoxSurvivalModel:
             return -torch.sum((eta - log_risk)[event_mask])
 
         flat = torch.tensor(weight, dtype=torch.float64, device=device, requires_grad=True)
-        hessian = torch.autograd.functional.hessian(negative_log_likelihood, flat)
+        hessian_function = cast(Callable[[Any, Any], Any], torch.autograd.functional.hessian)
+        hessian = hessian_function(negative_log_likelihood, flat)
         hessian = hessian.reshape(n_features, n_features).detach().cpu().numpy()
 
         try:

@@ -100,7 +100,7 @@ def build_calendar_features(panel: pd.DataFrame, date_column: str = "date") -> p
     day_of_year = dates.dt.day_of_year.to_numpy(dtype=float)
     frame["season_sin"] = np.sin(2.0 * np.pi * day_of_year / 365.25)
     frame["season_cos"] = np.cos(2.0 * np.pi * day_of_year / 365.25)
-    frame["is_weekend"] = (dates.dt.dayofweek >= 5).astype(float)
+    frame["is_weekend"] = (dates.dt.day_of_week >= 5).astype(float)
 
     # Signed distance to 25 December, clipped to +/-60 days: beyond that the
     # effect is flat and an unclipped ramp would impose linear structure on
