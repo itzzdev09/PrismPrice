@@ -374,7 +374,7 @@ flowchart LR
   app["app.js"] --> story["product-story.js"]
   story --> canvas["Sticky canvas + camera frames"]
   story --> gsap["Local GSAP + ScrollTrigger"]
-  story --> theme["Light / dark prism artwork"]
+  story --> theme["Theme-aware dashboard palette"]
 ```
 
 - `decision-request.js` validates form values and maps them to the API contract. It accepts an injectable clock and makes no network or document calls.
@@ -382,7 +382,7 @@ flowchart LR
 - `workbench.js` coordinates form events, service status, loading and stale states, the API, and result rendering.
 - `render.js` validates the returned decision record and builds the recommendation view with DOM nodes and text content.
 - `theme.js`, `navigation.js`, and `scroll-reveals.js` own appearance preferences, anchor navigation, and optional entrance motion.
-- `product-story.js` owns the scroll story, camera interpolation, frame rendering, text timing, and static fallback. It preloads one full-resolution prism image for each theme, then draws a procedural 180-frame camera sequence to the canvas. This keeps rendering independent of a large, duplicated raster sequence while preserving a direct frame index for scroll scrubbing.
-- GSAP 3.15.0 and ScrollTrigger are bundled as local ES modules under `web/vendor/gsap/`; the site has no runtime CDN dependency. Reduced-motion preferences use the static image and manual story-step controls. Small screens keep the static image while scroll-synced copy remains available.
+- `product-story.js` owns the scroll story, camera interpolation, Canvas rendering, text timing, and static fallback. It draws 180 theme-aware dashboard states directly from Canvas code, scrubbing from the decision overview into the demand comparison, policy checks, and decision record. It loads no raster sequence or external visual assets.
+- GSAP 3.15.0 and ScrollTrigger are bundled as local ES modules under `web/vendor/gsap/`; the site has no runtime CDN dependency. A static HTML dashboard and manual step controls keep the story available when Canvas animation is unavailable, on small screens, and for reduced-motion preferences.
 
-The light and dark prism artwork and the vendored motion modules are included in package data so they are available in both the repository app and installed distributions.
+The vendored motion modules are included in package data so they are available in both the repository app and installed distributions.
