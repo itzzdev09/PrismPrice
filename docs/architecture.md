@@ -355,3 +355,28 @@ Four properties of this record are enforced by the model, not by convention:
 | 5 Decision | 🟢 met | Category backtest beats cost-plus (+33.3%) and competitor-match (+14.8%); sequential markdown MDP beats a hindsight-chosen static price and myopic pricing |
 | 7 Serving | ⚪ | API contracts pass; chaos test (killed model store) degrades cleanly to Level 5 (`CRITICAL_MAINTAIN_PREV`) |
 | 8 Learning | ⚪ | OPE recovers known policy value on synthetic logs within tolerance |
+
+---
+
+## 8. Browser workbench (`src/prismprice/web/`) — 🟢 built
+
+The browser client stays framework-free and separates input mapping, HTTP transport, orchestration, and presentation. `app.js` is the composition root; it starts the theme, navigation, scroll-reveal, and workbench modules.
+
+```mermaid
+flowchart LR
+  form["HTML form / FormData"] --> request["decision-request.js"]
+  request --> controller["workbench.js"]
+  controller --> api["pricing-api.js"]
+  api --> server["FastAPI /decide"]
+  server --> controller
+  controller --> renderer["render.js"]
+  renderer --> result["Recommendation panel"]
+```
+
+- `decision-request.js` validates form values and maps them to the API contract. It accepts an injectable clock and makes no network or document calls.
+- `pricing-api.js` owns request headers, timeouts, response parsing, and transport errors. Its fetch implementation and timeout can be injected.
+- `workbench.js` coordinates form events, service status, loading and stale states, the API, and result rendering.
+- `render.js` validates the returned decision record and builds the recommendation view with DOM nodes and text content.
+- `theme.js`, `navigation.js`, and `scroll-reveals.js` own appearance preferences, anchor navigation, and optional entrance motion. Reduced-motion preferences disable looping and reveal animation.
+
+The pixel-art sprite is stored alongside the static assets and included in package data so it is available in both the repository app and installed distributions.

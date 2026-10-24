@@ -92,7 +92,7 @@ Issues = "https://github.com/itzzdev09/PrismPrice/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-prismprice = ["py.typed", "web/*.html", "web/*.css", "web/*.js"]
+prismprice = ["py.typed", "web/*.html", "web/*.css", "web/*.js", "web/*.png"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

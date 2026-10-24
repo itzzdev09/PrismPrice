@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f8f9fa">
-  <meta name="description" content="Compare retail price scenarios, review business guardrails, and inspect recommendation records with PrismPrice.">
-  <title>PrismPrice — pricing decisions for retail</title>
+  <meta name="theme-color" content="#f5f5f7">
+  <meta name="description" content="Explore retail pricing scenarios, demand estimates, and policy checks with PrismPrice.">
+  <title>PrismPrice — pricing decisions in full view</title>
   <link rel="stylesheet" href="/assets/tokens.css">
   <link rel="stylesheet" href="/assets/layout.css">
   <link rel="stylesheet" href="/assets/components.css">
@@ -16,16 +16,18 @@
   <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="topbar">
     <a class="brand" href="#top" aria-label="PrismPrice home">
-      <span class="brand-mark" aria-hidden="true">P</span><span>PrismPrice</span>
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span>PrismPrice</span>
     </a>
     <nav class="navigation" aria-label="Main navigation">
-      <a href="#workbench">Workbench</a><a href="#principles">Principles</a>
+      <a href="#workbench">Workbench</a>
+      <a href="#principles">Approach</a>
       <a href="#guardrails">Guardrails</a>
     </nav>
     <div class="top-actions">
       <span class="service-state loading" id="service-state" role="status" aria-live="polite" aria-atomic="true"><span class="status-dot" aria-hidden="true"></span><span id="service-label">Checking service</span></span>
       <button class="service-retry" id="service-retry" type="button" hidden>Retry</button>
-      <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch appearance">
+      <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch appearance" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42m0-12.72-1.42 1.42m-9.88 9.88-1.42 1.42M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg>
       </button>
     </div>
@@ -33,35 +35,47 @@
 
   <main id="main-content">
     <section class="hero page-wrap" id="top" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <p class="eyebrow">Pricing decisions for retail</p>
-        <h1 id="hero-title">Pricing decisions,<br><span>made clearer.</span></h1>
-        <p class="hero-intro">Compare candidate prices against demand estimates and business rules. Review the recommendation and its audit record before deciding what to do.</p>
+      <div class="hero-copy" data-reveal="left">
+        <p class="eyebrow"><span class="eyebrow-mark"></span> Retail pricing · Decision support</p>
+        <h1 id="hero-title">Every price,<br><span>in full view.</span></h1>
+        <p class="hero-intro">Compare demand, margin, and policy in one place. See how a recommendation was reached before you decide what happens next.</p>
         <div class="hero-actions">
-          <a class="button button-primary" href="#workbench">Open the workbench <span aria-hidden="true">↘</span></a>
-          <a class="text-link" href="#principles">How it works <span aria-hidden="true">↓</span></a>
+          <a class="button button-primary" href="#workbench">Explore the workbench <span aria-hidden="true">↘</span></a>
+          <a class="text-link" href="#principles">See how it works <span aria-hidden="true">↓</span></a>
         </div>
+        <div class="hero-note"><span class="note-line"></span> Recommendations stay under your control.</div>
       </div>
-      <div class="hero-facts" aria-label="PrismPrice capabilities">
-        <div><strong>Demand</strong><span>Estimates for candidate prices</span></div>
-        <div><strong>Policy</strong><span>Checks applied before recommendation</span></div>
-        <div><strong>Record</strong><span>Inputs and reasons saved for review</span></div>
+      <div class="hero-visual" data-reveal="right">
+        <div class="visual-grid" aria-hidden="true"></div>
+        <div class="visual-halo" aria-hidden="true"></div>
+        <div class="visual-orbit orbit-one" aria-hidden="true"></div>
+        <div class="visual-orbit orbit-two" aria-hidden="true"></div>
+        <div class="visual-chip chip-demand" aria-hidden="true"><span></span> DEMAND</div>
+        <div class="visual-chip chip-policy" aria-hidden="true"><span></span> POLICY</div>
+        <div class="pixel-sprite" role="img" aria-label="Animated pixel art of a glowing price tag above a stack of coins"></div>
+        <div class="visual-caption" aria-hidden="true"><span>SKU 001</span><i></i><span>PRICE SCENARIO</span></div>
       </div>
+      <div class="hero-capabilities" aria-label="PrismPrice capabilities" data-reveal>
+        <div><span class="capability-index">01</span><strong>Demand estimates</strong><span>Compare candidate prices</span></div>
+        <div><span class="capability-index">02</span><strong>Business guardrails</strong><span>Apply policy before selection</span></div>
+        <div><span class="capability-index">03</span><strong>Decision records</strong><span>Review inputs and reason codes</span></div>
+      </div>
+      <a class="scroll-cue" href="#workbench" aria-label="Scroll to the workbench"><span></span> SCROLL TO EXPLORE</a>
     </section>
 
     <section class="workbench-section page-wrap" id="workbench" aria-labelledby="workbench-title">
-      <div class="section-heading">
-        <div><p class="eyebrow">Pricing scenario</p><h2 id="workbench-title">Review a price<br><span>recommendation.</span></h2></div>
-        <p>Enter the product and policy details. The workbench compares candidate prices, applies guardrails, and records why a price was recommended.</p>
+      <div class="section-heading" data-reveal>
+        <div><p class="eyebrow">Pricing workbench</p><h2 id="workbench-title">A clearer way to<br><span>review a price.</span></h2></div>
+        <p>Set the product context. PrismPrice scores a ladder of candidate prices, checks each against your policy, and shows the reasoning behind the result.</p>
       </div>
-      <div class="workbench-shell">
+      <div class="workbench-shell" data-reveal>
         <div class="workbench-topline">
-          <span class="live-tag">Pricing workbench</span>
+          <div class="live-tag"><span class="status-dot" aria-hidden="true"></span> Scenario builder</div>
           <span class="demo-tag" id="model-label">Model status loading…</span>
         </div>
         <div class="workbench-grid">
           <form class="decision-form" id="decision-form">
-            <div class="form-heading"><div><h3>Price context</h3><p>Enter the product and current conditions.</p></div></div>
+            <div class="form-heading"><span class="form-icon" aria-hidden="true">01</span><div><h3>Price context</h3><p>Product details and current conditions.</p></div></div>
             <label class="field"><span>Product SKU</span><input name="sku" value="SKU-001" maxlength="128" required autocomplete="off"></label>
             <div class="field-row">
               <label class="field"><span>Current price</span><div class="input-affix"><i>$</i><input name="current_price" type="number" min="0.01" step="0.01" value="30.00" required></div></label>
@@ -86,14 +100,15 @@
               <p class="form-note">Sent with this decision request and kept only in this page until it is refreshed.</p>
             </details>
             <p class="form-error" id="form-error" role="alert" tabindex="-1" hidden></p>
-            <button class="button button-primary submit-button" id="submit-button" type="submit">Get recommendation <span aria-hidden="true">↗</span></button>
+            <button class="button button-primary submit-button" id="submit-button" type="submit"><span class="submit-label">Get recommendation</span><span aria-hidden="true">↗</span></button>
             <p class="form-note">Decision support only. Prices are never published automatically.</p>
           </form>
 
           <section class="decision-panel" id="decision-panel" aria-label="Recommendation results" aria-live="polite">
             <p class="result-stale" id="result-stale" role="status" hidden>Inputs changed since this decision. Run the workbench again to update the recommendation.</p>
             <div class="result-empty" id="result-empty">
-              <p class="eyebrow">No scenario run</p><h3>Recommendation details<br>will appear here.</h3>
+              <div class="empty-orb" aria-hidden="true"><span></span></div>
+              <p class="eyebrow">Your scenario</p><h3>Recommendation details<br>will appear here.</h3>
               <p>Run the workbench to review the suggested price, candidate scores, and policy checks.</p>
             </div>
             <div id="result-content" hidden></div>
@@ -103,21 +118,21 @@
     </section>
 
     <section class="principles-section page-wrap" id="principles" aria-labelledby="principles-title">
-      <div class="section-heading compact-heading">
-        <div><p class="eyebrow">Method</p><h2 id="principles-title">How prices are <span>evaluated.</span></h2></div>
+      <div class="section-heading compact-heading" data-reveal>
+        <div><p class="eyebrow">The method</p><h2 id="principles-title">From signal<br>to <span>decision.</span></h2></div>
         <p>Each recommendation includes the estimates, constraints, and decision record used to produce it.</p>
       </div>
       <div class="principles-grid">
-        <article class="principle-card"><span class="principle-index">01</span><h3>Estimate demand</h3><p>Model expected demand at each candidate price and keep uncertainty visible.</p></article>
-        <article class="principle-card"><span class="principle-index">02</span><h3>Compare candidates</h3><p>Score possible prices against expected value and downside risk.</p></article>
-        <article class="principle-card"><span class="principle-index">03</span><h3>Apply policy</h3><p>Exclude prices that breach margin, movement, inventory, or fairness rules.</p></article>
-        <article class="principle-card"><span class="principle-index">04</span><h3>Record the result</h3><p>Keep the inputs, model versions, candidate scores, and reason codes.</p></article>
+        <article class="principle-card" data-reveal><span class="principle-index">01 / ESTIMATE</span><div class="principle-mark mark-demand" aria-hidden="true"><i></i><i></i><i></i><i></i></div><h3>Estimate demand</h3><p>Model expected demand at each candidate price and keep uncertainty in view.</p></article>
+        <article class="principle-card" data-reveal><span class="principle-index">02 / COMPARE</span><div class="principle-mark mark-compare" aria-hidden="true"><i></i><i></i><i></i></div><h3>Compare candidates</h3><p>Score possible prices against expected value and downside risk.</p></article>
+        <article class="principle-card" data-reveal><span class="principle-index">03 / PROTECT</span><div class="principle-mark mark-policy" aria-hidden="true"><i></i></div><h3>Apply policy</h3><p>Exclude prices that breach margin, movement, inventory, or fairness rules.</p></article>
+        <article class="principle-card" data-reveal><span class="principle-index">04 / RECORD</span><div class="principle-mark mark-record" aria-hidden="true"><i></i><i></i><i></i></div><h3>Record the result</h3><p>Keep the inputs, candidate scores, model versions, and reason codes.</p></article>
       </div>
     </section>
 
     <section class="guardrails-section page-wrap" id="guardrails" aria-labelledby="guardrails-title">
-      <div class="guardrails-card">
-        <div class="guardrails-copy"><p class="eyebrow">Policy checks</p><h2 id="guardrails-title">Rules applied to<br><span>every candidate.</span></h2><p>Prices that fail an applicable business rule are excluded. The result shows which checks passed, failed, or did not apply.</p><a class="text-link" href="https://github.com/itzzdev09/PrismPrice/blob/main/docs/metrics.md">Read about the metrics <span aria-hidden="true">↗</span></a></div>
+      <div class="guardrails-card" data-reveal>
+        <div class="guardrails-copy"><p class="eyebrow">Policy checks</p><h2 id="guardrails-title">Rules around<br><span>every price.</span></h2><p>Prices are evaluated against explicit business rules before a recommendation is made. The result shows which checks passed, failed, or did not apply.</p><a class="text-link" href="https://github.com/itzzdev09/PrismPrice/blob/main/docs/metrics.md">Read about the metrics <span aria-hidden="true">↗</span></a></div>
         <ul class="guardrail-list">
           <li><span>01</span> Minimum viable price</li><li><span>02</span> Margin protection</li>
           <li><span>03</span> Promotion reference price</li><li><span>04</span> Competitive ceiling</li>
@@ -128,6 +143,7 @@
       </div>
     </section>
   </main>
-  <footer class="site-footer page-wrap"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">P</span><span>PrismPrice</span></a><p>Retail pricing decision support.</p><div><a href="https://github.com/itzzdev09/PrismPrice">GitHub ↗</a><a href="https://github.com/itzzdev09/PrismPrice/blob/main/docs/architecture.md">Architecture ↗</a></div></footer>
+
+  <footer class="site-footer page-wrap"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>PrismPrice</span></a><p>Retail pricing decision support.</p><div><a href="https://github.com/itzzdev09/PrismPrice">GitHub ↗</a><a href="https://github.com/itzzdev09/PrismPrice/blob/main/docs/architecture.md">Architecture ↗</a></div></footer>
 </body>
 </html>
