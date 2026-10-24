@@ -49,7 +49,7 @@
       </div>
       <div class="hero-visual" data-reveal="right">
         <div class="visual-glow" aria-hidden="true"></div>
-        <img class="hero-prism" src="/assets/prism-light.webp" data-theme-image-light="/assets/prism-light.webp" data-theme-image-dark="/assets/prism-dark.webp" alt="A polished optical glass prism catching blue, violet, and warm light" fetchpriority="high">
+        <img class="hero-prism" src="/assets/prism-light-v2.png" data-theme-image-light="/assets/prism-light-v2.png" data-theme-image-dark="/assets/prism-dark-v2.png" alt="A polished optical glass prism catching blue, violet, and warm light" fetchpriority="high">
         <div class="visual-caption" aria-hidden="true"><span>PRISMPRICE</span><i></i><span>DECISIONS, IN FOCUS</span></div>
       </div>
       <div class="hero-capabilities" aria-label="PrismPrice capabilities" data-reveal>
@@ -67,43 +67,47 @@
       </div>
       <div class="story-track" id="story-track">
         <div class="story-stage" id="story-stage" data-active-step="0">
-          <div class="story-art" aria-hidden="true">
-            <img class="story-prism" id="story-prism" src="/assets/prism-light.webp" data-theme-image-light="/assets/prism-light.webp" data-theme-image-dark="/assets/prism-dark.webp" alt="">
+          <div class="story-art" id="story-art" aria-hidden="true">
+            <canvas class="story-canvas" id="story-canvas" width="1440" height="900"></canvas>
+            <img class="story-static-image" id="story-static-image" src="/assets/prism-light-v2.png" data-theme-image-light="/assets/prism-light-v2.png" data-theme-image-dark="/assets/prism-dark-v2.png" alt="" loading="lazy" decoding="async">
           </div>
           <div class="story-copy" id="story-copy" aria-live="polite">
-            <article class="story-step" data-story-step="0">
-              <p class="story-kicker"><span>01</span> / READ THE SIGNAL</p>
-              <h3>Start with the full picture.</h3>
-              <p>Bring demand, today&apos;s price, cost, and competitor context into the same decision.</p>
-              <div class="story-detail"><span>DEMAND</span><span>COST</span><span>COMPETITORS</span></div>
-            </article>
-            <article class="story-step" data-story-step="1" hidden>
-              <p class="story-kicker"><span>02</span> / COMPARE OPTIONS</p>
-              <h3>See what each price gives up.</h3>
-              <p>Compare candidate prices by expected demand, margin, and downside risk before choosing a direction.</p>
-              <div class="story-detail story-detail-bars"><span><i></i>Demand</span><span><i></i>Margin</span><span><i></i>Risk</span></div>
-            </article>
-            <article class="story-step" data-story-step="2" hidden>
-              <p class="story-kicker"><span>03</span> / APPLY POLICY</p>
-              <h3>Keep the guardrails in frame.</h3>
-              <p>Check a candidate against your margin floor and allowed price movement before it can be recommended.</p>
-              <div class="story-detail story-detail-checks"><span><b aria-hidden="true">&#10003;</b> Margin floor</span><span><b aria-hidden="true">&#10003;</b> Price movement</span></div>
-            </article>
-            <article class="story-step" data-story-step="3" hidden>
-              <p class="story-kicker"><span>04</span> / RECORD THE REASON</p>
-              <h3>Know how the result landed.</h3>
-              <p>Review the selected price alongside its model version, inputs, policy checks, and reason codes.</p>
-              <div class="story-detail"><span>MODEL VERSION</span><span>REASON CODES</span></div>
-            </article>
+            <div class="story-content">
+              <article class="story-step" data-story-step="0">
+                <p class="story-kicker"><span>01</span> / READ THE SIGNAL</p>
+                <h3>Start with the whole picture.</h3>
+                <p>Bring demand, today&apos;s price, cost, and competitor context into the same decision.</p>
+                <div class="story-detail"><span>DEMAND</span><span>COST</span><span>COMPETITORS</span></div>
+              </article>
+              <article class="story-step" data-story-step="1" hidden>
+                <p class="story-kicker"><span>02</span> / COMPARE OPTIONS</p>
+                <h3>See the trade-offs clearly.</h3>
+                <p>Compare candidate prices by expected demand, margin, and downside risk before choosing a direction.</p>
+                <div class="story-detail story-detail-bars"><span><i></i>Demand</span><span><i></i>Margin</span><span><i></i>Risk</span></div>
+              </article>
+              <article class="story-step" data-story-step="2" hidden>
+                <p class="story-kicker"><span>03</span> / APPLY POLICY</p>
+                <h3>Keep the guardrails in view.</h3>
+                <p>Check each candidate against your margin floor and price movement limit before it can be recommended.</p>
+                <div class="story-detail story-detail-checks"><span><b aria-hidden="true">&#10003;</b> Margin floor</span><span><b aria-hidden="true">&#10003;</b> Price movement</span></div>
+              </article>
+              <article class="story-step" data-story-step="3" hidden>
+                <p class="story-kicker"><span>04</span> / RECORD THE REASON</p>
+                <h3>Make the outcome explainable.</h3>
+                <p>Review the selected price alongside its model version, inputs, policy checks, and reason codes.</p>
+                <div class="story-detail"><span>MODEL VERSION</span><span>REASON CODES</span></div>
+              </article>
+            </div>
             <div class="story-controls" role="group" aria-label="Choose a story step">
               <button type="button" class="story-step-button" data-story-go="0" aria-label="Show step 1: Read the signal" aria-current="step">01</button>
               <button type="button" class="story-step-button" data-story-go="1" aria-label="Show step 2: Compare options">02</button>
               <button type="button" class="story-step-button" data-story-go="2" aria-label="Show step 3: Apply policy">03</button>
               <button type="button" class="story-step-button" data-story-go="3" aria-label="Show step 4: Record the reason">04</button>
-              <span class="story-scroll-hint">KEEP SCROLLING</span>
+              <span class="story-progress" aria-hidden="true"><span id="story-progress-fill"></span></span>
+              <span class="story-scroll-hint">SCROLL TO EXPLORE</span>
             </div>
           </div>
-          <div class="story-caption" aria-hidden="true"><span>ONE PRISM</span><i></i><span>FOUR LENSES</span></div>
+          <div class="story-caption" aria-hidden="true"><span id="story-caption-stage">01 / 04</span><i></i><span>PRISMPRICE</span></div>
         </div>
       </div>
     </section>

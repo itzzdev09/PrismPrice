@@ -1,0 +1,6 @@
+GSAP 3.15.0
+Copyright 2008-2026 GreenSock. All rights reserved.
+
+The bundled ES modules are unmodified files from the GSAP npm distribution.
+Each JavaScript file retains its original copyright and license header.
+License terms: https://gsap.com/standard-license

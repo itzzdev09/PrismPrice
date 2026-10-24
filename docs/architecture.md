@@ -360,7 +360,7 @@ Four properties of this record are enforced by the model, not by convention:
 
 ## 8. Browser workbench (`src/prismprice/web/`) — 🟢 built
 
-The browser client stays framework-free and separates input mapping, HTTP transport, orchestration, and presentation. `app.js` is the composition root; it starts the theme, navigation, scroll-reveal, and workbench modules.
+The browser client stays framework-free and separates input mapping, HTTP transport, orchestration, presentation, and the product story. `app.js` is the composition root; it starts the theme, navigation, scroll-reveal, product-story, and workbench modules.
 
 ```mermaid
 flowchart LR
@@ -371,12 +371,18 @@ flowchart LR
   server --> controller
   controller --> renderer["render.js"]
   renderer --> result["Recommendation panel"]
+  app["app.js"] --> story["product-story.js"]
+  story --> canvas["Sticky canvas + camera frames"]
+  story --> gsap["Local GSAP + ScrollTrigger"]
+  story --> theme["Light / dark prism artwork"]
 ```
 
 - `decision-request.js` validates form values and maps them to the API contract. It accepts an injectable clock and makes no network or document calls.
 - `pricing-api.js` owns request headers, timeouts, response parsing, and transport errors. Its fetch implementation and timeout can be injected.
 - `workbench.js` coordinates form events, service status, loading and stale states, the API, and result rendering.
 - `render.js` validates the returned decision record and builds the recommendation view with DOM nodes and text content.
-- `theme.js`, `navigation.js`, and `scroll-reveals.js` own appearance preferences, anchor navigation, and optional entrance motion. Reduced-motion preferences disable looping and reveal animation.
+- `theme.js`, `navigation.js`, and `scroll-reveals.js` own appearance preferences, anchor navigation, and optional entrance motion.
+- `product-story.js` owns the scroll story, camera interpolation, frame rendering, text timing, and static fallback. It preloads one full-resolution prism image for each theme, then draws a procedural 180-frame camera sequence to the canvas. This keeps rendering independent of a large, duplicated raster sequence while preserving a direct frame index for scroll scrubbing.
+- GSAP 3.15.0 and ScrollTrigger are bundled as local ES modules under `web/vendor/gsap/`; the site has no runtime CDN dependency. Reduced-motion preferences use the static image and manual story-step controls. Small screens keep the static image while scroll-synced copy remains available.
 
-The pixel-art sprite is stored alongside the static assets and included in package data so it is available in both the repository app and installed distributions.
+The light and dark prism artwork and the vendored motion modules are included in package data so they are available in both the repository app and installed distributions.
