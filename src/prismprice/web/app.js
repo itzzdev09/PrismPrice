@@ -22,7 +22,7 @@ function applyTheme(theme, persist = false) {
   themeButton.setAttribute("aria-pressed", String(theme === "dark"));
   themeButton.setAttribute("aria-label", `${theme === "dark" ? "Dark" : "Light"} appearance`);
   themeIcon.setAttribute("d", theme === "dark" ? moonPath : sunPath);
-  themeColor.content = theme === "dark" ? "#121318" : "#f5f5f7";
+  themeColor.content = theme === "dark" ? "#171a1f" : "#f8f9fa";
   if (persist) {
     manuallySelectedTheme = true;
     try {
