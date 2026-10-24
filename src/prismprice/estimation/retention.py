@@ -407,9 +407,7 @@ class CoxSurvivalModel:
             return -torch.sum((eta - log_risk)[event_mask])
 
         flat = torch.tensor(weight, dtype=torch.float64, device=device, requires_grad=True)
-        hessian = torch.autograd.functional.hessian(  # type: ignore[no-untyped-call]
-            negative_log_likelihood, flat
-        )
+        hessian = torch.autograd.functional.hessian(negative_log_likelihood, flat)
         hessian = hessian.reshape(n_features, n_features).detach().cpu().numpy()
 
         try:

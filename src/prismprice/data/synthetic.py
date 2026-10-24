@@ -103,7 +103,7 @@ def _build_confounders(dates: pd.DatetimeIndex, rng: np.random.Generator) -> pd.
     and an iid confounder is trivially easy to control for, which would make the
     DML validation in Phase 3 meaningless.
     """
-    day_of_year = dates.dayofyear.to_numpy()
+    day_of_year = dates.day_of_year.to_numpy()
     day_of_week = dates.dayofweek.to_numpy()
 
     yearly = np.sin(2 * np.pi * day_of_year / 365.25)

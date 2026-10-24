@@ -207,7 +207,7 @@ class FeatureBuilder:
 
         last_date = history["date"].iloc[-1]
         age_days = float((cutoff - last_date).total_seconds() / 86_400.0)
-        day_of_year = int(cutoff.dayofyear)
+        day_of_year = int(cutoff.day_of_year)
 
         return FeatureVector(
             sku=sku,

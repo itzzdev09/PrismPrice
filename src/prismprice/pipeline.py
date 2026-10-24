@@ -97,7 +97,7 @@ def build_calendar_features(panel: pd.DataFrame, date_column: str = "date") -> p
     frame = panel.copy()
     dates = pd.to_datetime(frame[date_column], utc=True)
 
-    day_of_year = dates.dt.dayofyear.to_numpy(dtype=float)
+    day_of_year = dates.dt.day_of_year.to_numpy(dtype=float)
     frame["season_sin"] = np.sin(2.0 * np.pi * day_of_year / 365.25)
     frame["season_cos"] = np.cos(2.0 * np.pi * day_of_year / 365.25)
     frame["is_weekend"] = (dates.dt.dayofweek >= 5).astype(float)

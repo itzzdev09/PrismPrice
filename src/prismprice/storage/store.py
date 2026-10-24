@@ -453,5 +453,6 @@ class PriceStore:
         }
 
     def _scalar(self, query: str, params: Sequence[Any] | None = None) -> int:
-        row = self._connection.execute(query, list(params or [])).fetchone()
+        rows = self._connection.execute(query, list(params or [])).fetchall()
+        row = rows[0] if rows else None
         return int(row[0]) if row and row[0] is not None else 0
