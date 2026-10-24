@@ -294,18 +294,23 @@ Full definitions, thresholds and alerting rules: [docs/metrics.md](docs/metrics.
 ### PrismPrice web app
 
 The browser workbench is served by the same FastAPI application as the pricing
-API. Start a local demonstration with:
+API. From the repository root in PowerShell, create a project-local environment
+and install the current compatible serving dependencies:
 
-```bash
-pip install -e ".[serving]"
-python -m prismprice.webapp
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e ".[serving]"
+.\.venv\Scripts\python.exe -m prismprice.webapp
 ```
 
-Open <http://127.0.0.1:8000>. Enter product cost, current price, and optional
-market or stock context to request a recommendation. The workbench shows the
-candidate ladder, the selected decision rung, each guardrail result, and a
-downloadable JSON audit record. Interactive requests use `POST /decide`; service
-status comes from `GET /health`.
+Open <http://127.0.0.1:8000>. Keep one local server running on port 8000; if it is
+already running, use that instance instead of starting another. Stop it with
+`Ctrl+C` in its terminal. Enter product cost, current price, and optional market
+or stock context to request a recommendation. The workbench shows the candidate
+ladder, the selected decision rung, each guardrail result, and a downloadable
+JSON audit record. Interactive requests use `POST /decide`; service status comes
+from `GET /health`.
 
 The local command uses a deterministic **sample demand curve** for exploration.
 It listens on localhost, allows anonymous decisions, and exposes API docs; do

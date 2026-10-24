@@ -10,8 +10,12 @@
 .text-link:hover { color: var(--accent); }
 .icon-button { display: grid; width: 34px; aspect-ratio: 1; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: color-mix(in srgb, var(--surface) 76%, transparent); color: var(--ink-secondary); cursor: pointer; transition: background .2s ease, color .2s ease; }
 .icon-button:hover { background: var(--surface); color: var(--ink); }
-.icon-button svg { width: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; transition: transform .35s var(--ease-out); }
-.icon-button[aria-pressed="true"] svg { transform: rotate(45deg); }
+.icon-button { position: relative; flex: 0 0 auto; transition: background .2s ease, color .2s ease, border-color .2s ease; }
+.icon-button:hover { border-color: var(--line-strong); }
+.theme-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; transition: opacity .2s ease, transform .25s var(--ease-out); }
+.theme-icon-sun { display: none; }
+:root[data-theme="dark"] .theme-icon-moon { display: none; }
+:root[data-theme="dark"] .theme-icon-sun { display: block; }
 .service-state { display: flex; align-items: center; gap: 7px; color: var(--ink-tertiary); font-size: 10px; }
 .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
 .service-state.offline .status-dot { background: var(--red); }

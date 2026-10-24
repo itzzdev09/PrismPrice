@@ -4,7 +4,7 @@
   .hero { padding-top: 58px; }
   .hero h1 { font-size: clamp(48px, 7vw, 66px); }
   .hero-visual { min-height: 510px; }
-  .pixel-sprite { width: min(34vw, 280px); }
+  .hero-prism { width: min(52vw, 490px); }
   .workbench-grid { grid-template-columns: .92fr 1.08fr; }
   .decision-form { padding-inline: 25px; }
   .decision-panel { padding-inline: 22px; }
@@ -17,6 +17,7 @@
   .page-wrap { width: calc(100% - 40px); }
   .topbar { min-height: 62px; padding-inline: 20px; }
   .navigation { gap: 17px; margin-right: 20px; }
+  :root { --topbar-height: 62px; }
   .navigation a { font-size: 11px; }
   .navigation a:last-child { display: none; }
   .top-actions { gap: 9px; }
@@ -27,13 +28,27 @@
   .hero h1 { font-size: clamp(50px, 12vw, 72px); }
   .hero-intro { max-width: 530px; font-size: 15px; }
   .hero-visual { min-height: 430px; margin-top: 5px; }
-  .pixel-sprite { width: 220px; }
-  .visual-grid { inset: 20px 0; }
+  .hero-prism { width: min(72vw, 460px); }
   .hero-capabilities { gap: 13px; margin-top: 9px; }
   .hero-capabilities > div { grid-template-columns: 24px 1fr; column-gap: 7px; }
   .hero-capabilities strong { font-size: 11px; }
   .hero-capabilities > div > span:last-child { font-size: 9px; }
   .workbench-section, .principles-section, .guardrails-section { padding-top: 82px; }
+
+  .story-intro { align-items: flex-start; flex-direction: column; gap: 13px; margin-bottom: 20px; }
+  .story-intro h2 { font-size: clamp(39px, 9vw, 54px); }
+  .story-intro > p { max-width: 540px; font-size: 13px; }
+  .story-track { height: 440svh; }
+  .story-stage { height: calc(100svh - var(--topbar-height)); min-height: 600px; }
+  .story-prism { top: 35%; left: 50%; width: min(120vw, 680px); }
+  .story-copy { top: auto; right: 16px; bottom: 17px; left: 16px; width: auto; padding: 20px 20px 14px; border-radius: 21px; transform: none; }
+  .story-step { min-height: 210px; }
+  .story-step h3 { max-width: 370px; font-size: clamp(25px, 6vw, 32px); }
+  .story-step > p:not(.story-kicker) { margin-top: 9px; font-size: 12px; }
+  .story-detail { margin-top: 14px; }
+  .story-controls { margin-top: 15px; padding-top: 12px; }
+  .story-caption { display: none; }
+  .product-story { padding-top: 84px; }
   .section-heading { align-items: flex-start; flex-direction: column; gap: 14px; margin-bottom: 24px; }
   .section-heading h2, .guardrails-copy h2 { font-size: clamp(38px, 9vw, 52px); }
   .section-heading > p { max-width: 540px; font-size: 13px; }
@@ -55,17 +70,14 @@
   .brand-mark { width: 23px; height: 23px; }
   .navigation { gap: 11px; margin-right: 12px; }
   .navigation a { font-size: 10px; }
+  .navigation a[href="#principles"] { display: none; }
   .icon-button { width: 30px; }
   .service-retry { padding: 4px 7px; font-size: 9px; }
   .hero { padding-top: 44px; }
   .hero h1 { font-size: clamp(44px, 13vw, 58px); }
   .hero-actions { align-items: flex-start; flex-direction: column; gap: 15px; }
   .hero-visual { min-height: 370px; margin-inline: -10px; }
-  .pixel-sprite { width: 185px; }
-  .visual-orbit { width: 290px; height: 180px; }
-  .visual-halo { width: 300px; }
-  .chip-demand { left: 4%; }.chip-policy { right: 3%; }
-  .visual-caption { bottom: 14px; font-size: 8px; }
+  .hero-prism { width: min(88vw, 390px); }
   .hero-capabilities { grid-template-columns: 1fr; gap: 12px; padding-block: 18px; }
   .hero-capabilities > div { grid-template-columns: 28px 1fr; }
   .hero-capabilities strong { font-size: 12px; }
@@ -91,4 +103,8 @@
   .candidate-row { grid-template-columns: 43px minmax(24px, 1fr) 58px auto; gap: 6px; }
   .candidate-score, .candidate-state { font-size: 8px; }
   .result-stats { gap: 5px; }.result-stat { padding: 9px 7px; }.result-stat strong { font-size: 11px; }
+}
+
+@media (max-height: 700px) {
+  .story-stage { min-height: calc(100svh - var(--topbar-height)); }
 }

@@ -76,6 +76,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, summary:focus-visibl
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
   html.reveal-ready [data-reveal] { opacity: 1; transform: none; }
-  .pixel-sprite { animation: none !important; background-position: 0 0 !important; }
-  .visual-halo, .visual-orbit, .visual-chip, .service-state.loading .status-dot { animation: none !important; }
+  .story-prism { transition: none !important; }
+  .story-step { animation-duration: .01ms !important; }
+  .service-state.loading .status-dot { animation: none !important; }
 }

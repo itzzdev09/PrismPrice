@@ -69,6 +69,8 @@ def create_app(
     the model store) is injected. Tests get to run against a store they control,
     and nothing reaches for a global at import time.
     """
+    import mimetypes
+
     from fastapi import Depends, FastAPI, HTTPException
     from fastapi.responses import FileResponse
     from fastapi.security import APIKeyHeader
@@ -150,6 +152,7 @@ def create_app(
             "decisions": [_response(outcome) for outcome in outcomes],
         }
 
+    mimetypes.add_type("image/webp", ".webp")
     application.mount("/assets", StaticFiles(directory=_WEB_DIR), name="assets")
 
     return application

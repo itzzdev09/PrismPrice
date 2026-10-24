@@ -21,14 +21,16 @@
     </a>
     <nav class="navigation" aria-label="Main navigation">
       <a href="#workbench">Workbench</a>
+      <a href="#story">The process</a>
       <a href="#principles">Approach</a>
       <a href="#guardrails">Guardrails</a>
     </nav>
     <div class="top-actions">
       <span class="service-state loading" id="service-state" role="status" aria-live="polite" aria-atomic="true"><span class="status-dot" aria-hidden="true"></span><span id="service-label">Checking service</span></span>
       <button class="service-retry" id="service-retry" type="button" hidden>Retry</button>
-      <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch appearance" aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42m0-12.72-1.42 1.42m-9.88 9.88-1.42 1.42M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"/></svg>
+      <button class="icon-button" id="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false">
+        <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 15.8A8.7 8.7 0 0 1 8.2 3.8a8.8 8.8 0 1 0 12 12Z"/></svg>
+        <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
       </button>
     </div>
   </header>
@@ -41,26 +43,69 @@
         <p class="hero-intro">Compare demand, margin, and policy in one place. See how a recommendation was reached before you decide what happens next.</p>
         <div class="hero-actions">
           <a class="button button-primary" href="#workbench">Explore the workbench <span aria-hidden="true">↘</span></a>
-          <a class="text-link" href="#principles">See how it works <span aria-hidden="true">↓</span></a>
+          <a class="text-link" href="#story">See how it works <span aria-hidden="true">↓</span></a>
         </div>
         <div class="hero-note"><span class="note-line"></span> Recommendations stay under your control.</div>
       </div>
       <div class="hero-visual" data-reveal="right">
-        <div class="visual-grid" aria-hidden="true"></div>
-        <div class="visual-halo" aria-hidden="true"></div>
-        <div class="visual-orbit orbit-one" aria-hidden="true"></div>
-        <div class="visual-orbit orbit-two" aria-hidden="true"></div>
-        <div class="visual-chip chip-demand" aria-hidden="true"><span></span> DEMAND</div>
-        <div class="visual-chip chip-policy" aria-hidden="true"><span></span> POLICY</div>
-        <div class="pixel-sprite" role="img" aria-label="Animated pixel art of a glowing price tag above a stack of coins"></div>
-        <div class="visual-caption" aria-hidden="true"><span>SKU 001</span><i></i><span>PRICE SCENARIO</span></div>
+        <div class="visual-glow" aria-hidden="true"></div>
+        <img class="hero-prism" src="/assets/prism-light.webp" data-theme-image-light="/assets/prism-light.webp" data-theme-image-dark="/assets/prism-dark.webp" alt="A polished optical glass prism catching blue, violet, and warm light" fetchpriority="high">
+        <div class="visual-caption" aria-hidden="true"><span>PRISMPRICE</span><i></i><span>DECISIONS, IN FOCUS</span></div>
       </div>
       <div class="hero-capabilities" aria-label="PrismPrice capabilities" data-reveal>
         <div><span class="capability-index">01</span><strong>Demand estimates</strong><span>Compare candidate prices</span></div>
         <div><span class="capability-index">02</span><strong>Business guardrails</strong><span>Apply policy before selection</span></div>
         <div><span class="capability-index">03</span><strong>Decision records</strong><span>Review inputs and reason codes</span></div>
       </div>
-      <a class="scroll-cue" href="#workbench" aria-label="Scroll to the workbench"><span></span> SCROLL TO EXPLORE</a>
+      <a class="scroll-cue" href="#story" aria-label="Scroll to see how a pricing decision comes together"><span></span> SCROLL TO EXPLORE</a>
+    </section>
+
+    <section class="product-story" id="story" aria-labelledby="story-title">
+      <div class="story-intro page-wrap" data-reveal>
+        <div><p class="eyebrow">One decision, step by step</p><h2 id="story-title">A price comes into<br><span>clearer focus.</span></h2></div>
+        <p>Scroll to follow the signals, compare the trade-offs, and see how policy shapes a recommendation.</p>
+      </div>
+      <div class="story-track" id="story-track">
+        <div class="story-stage" id="story-stage" data-active-step="0">
+          <div class="story-art" aria-hidden="true">
+            <img class="story-prism" id="story-prism" src="/assets/prism-light.webp" data-theme-image-light="/assets/prism-light.webp" data-theme-image-dark="/assets/prism-dark.webp" alt="">
+          </div>
+          <div class="story-copy" id="story-copy" aria-live="polite">
+            <article class="story-step" data-story-step="0">
+              <p class="story-kicker"><span>01</span> / READ THE SIGNAL</p>
+              <h3>Start with the full picture.</h3>
+              <p>Bring demand, today&apos;s price, cost, and competitor context into the same decision.</p>
+              <div class="story-detail"><span>DEMAND</span><span>COST</span><span>COMPETITORS</span></div>
+            </article>
+            <article class="story-step" data-story-step="1" hidden>
+              <p class="story-kicker"><span>02</span> / COMPARE OPTIONS</p>
+              <h3>See what each price gives up.</h3>
+              <p>Compare candidate prices by expected demand, margin, and downside risk before choosing a direction.</p>
+              <div class="story-detail story-detail-bars"><span><i></i>Demand</span><span><i></i>Margin</span><span><i></i>Risk</span></div>
+            </article>
+            <article class="story-step" data-story-step="2" hidden>
+              <p class="story-kicker"><span>03</span> / APPLY POLICY</p>
+              <h3>Keep the guardrails in frame.</h3>
+              <p>Check a candidate against your margin floor and allowed price movement before it can be recommended.</p>
+              <div class="story-detail story-detail-checks"><span><b aria-hidden="true">&#10003;</b> Margin floor</span><span><b aria-hidden="true">&#10003;</b> Price movement</span></div>
+            </article>
+            <article class="story-step" data-story-step="3" hidden>
+              <p class="story-kicker"><span>04</span> / RECORD THE REASON</p>
+              <h3>Know how the result landed.</h3>
+              <p>Review the selected price alongside its model version, inputs, policy checks, and reason codes.</p>
+              <div class="story-detail"><span>MODEL VERSION</span><span>REASON CODES</span></div>
+            </article>
+            <div class="story-controls" role="group" aria-label="Choose a story step">
+              <button type="button" class="story-step-button" data-story-go="0" aria-label="Show step 1: Read the signal" aria-current="step">01</button>
+              <button type="button" class="story-step-button" data-story-go="1" aria-label="Show step 2: Compare options">02</button>
+              <button type="button" class="story-step-button" data-story-go="2" aria-label="Show step 3: Apply policy">03</button>
+              <button type="button" class="story-step-button" data-story-go="3" aria-label="Show step 4: Record the reason">04</button>
+              <span class="story-scroll-hint">KEEP SCROLLING</span>
+            </div>
+          </div>
+          <div class="story-caption" aria-hidden="true"><span>ONE PRISM</span><i></i><span>FOUR LENSES</span></div>
+        </div>
+      </div>
     </section>
 
     <section class="workbench-section page-wrap" id="workbench" aria-labelledby="workbench-title">
