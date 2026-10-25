@@ -26,7 +26,7 @@ function renderMetrics(data) {
   const target = document.querySelector("#demo-metrics");
   target.replaceChildren(
     metricCard("Transaction lines", count.format(dataset.source_rows), "Full public source dataset"),
-    metricCard("Prepared product codes", count.format(dataset.skus), "After source cleaning"),
+    metricCard("Distinct SKUs", count.format(dataset.skus), "After source cleaning"),
     metricCard("Markets", count.format(dataset.countries), "Customer countries recorded"),
     metricCard("Net sales", money.format(dataset.net_revenue_gbp), "After recorded returns"),
     metricCard("Modelled products", count.format(dataset.modelable_skus), `${count.format(dataset.model_panel_rows)} observed SKU-days`),
