@@ -312,7 +312,19 @@ ladder, the selected decision rung, each guardrail result, and a downloadable
 JSON audit record. Interactive requests use `POST /decide`; service status comes
 from `GET /health`.
 
-The local command uses a deterministic **sample demand curve** for exploration.
+The local command uses a historical **Online Retail II demo**. It includes a
+dataset explorer with observed sales and model-review insights, and lets a
+visitor select a real product to run through the workbench. The demand curve is
+anchored to its recent product history and saved elasticity estimate; where a
+SKU estimate did not meet the confidence checks, the demo uses the pooled
+estimate. Unit costs use a labelled 45% margin assumption. The dataset ends in
+2011, so these results are a worked example, not current pricing guidance.
+Dataset source, cleaning, assumptions, and the saved run's findings are
+documented in [docs/demo-dataset.md](docs/demo-dataset.md). The source is
+Online Retail II from UCI, also available as a [Kaggle
+mirror](https://www.kaggle.com/datasets/lakshmi25npathi/online-retail-dataset);
+the original is CC BY 4.0 and its attribution is shown on the page.
+
 It listens on localhost, allows anonymous decisions, and exposes API docs; do
 not expose this demo server to the public internet.
 

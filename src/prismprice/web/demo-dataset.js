@@ -21,6 +21,8 @@ function metricCard(label, value, detail) {
 
 function renderMetrics(data) {
   const { dataset } = data;
+  document.querySelector("#decision-form").elements.namedItem("as_of").value =
+    `${dataset.decision_as_of}T00:00:00Z`;
   const target = document.querySelector("#demo-metrics");
   target.replaceChildren(
     metricCard("Transaction lines", count.format(dataset.source_rows), "Full public source dataset"),
@@ -140,7 +142,7 @@ function renderProductOptions(products) {
     const product = bySku.get(skuField.value.trim());
     if (product) {
       select.value = product.sku;
-      document.querySelector("#demo-product-context").textContent = describeProduct(product);
+      updateWorkbench(product);
     } else {
       select.value = "";
       document.querySelector("#demo-product-context").textContent =

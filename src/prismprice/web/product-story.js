@@ -95,28 +95,28 @@ function drawDashboard(context, bounds, colors) {
   context.fillStyle = colors.green;
   context.fill();
 
-  drawLabel(context, "PRODUCT  /  SKU-001", x + left, contentTop + 26 * scale, 8 * scale, colors.muted, 650);
-  drawLabel(context, "Ceramic mug", x + left, contentTop + 54 * scale, 20 * scale, colors.ink, 620);
+  drawLabel(context, "PRODUCT  /  SKU-22423", x + left, contentTop + 26 * scale, 8 * scale, colors.muted, 650);
+  drawLabel(context, "Regency cakestand", x + left, contentTop + 54 * scale, 20 * scale, colors.ink, 620);
   drawLabel(context, "Demand, margin, and policy at a glance", x + width - left, contentTop + 51 * scale, 9 * scale, colors.muted, 400, "right");
 
   const cardY = contentTop + 72 * scale;
   const cardHeight = 136 * scale;
   roundedRect(context, x + left, cardY, innerWidth, cardHeight, 12 * scale, colors.panel, colors.line);
   drawLabel(context, "RECOMMENDED PRICE", x + left + 20 * scale, cardY + 24 * scale, 8 * scale, colors.muted, 650);
-  drawLabel(context, "£32.40", x + left + 20 * scale, cardY + 66 * scale, 37 * scale, colors.ink, 630);
-  drawLabel(context, "↑  8.0%", x + left + 21 * scale, cardY + 91 * scale, 10 * scale, colors.green, 620);
-  drawLabel(context, "from £30.00", x + left + 69 * scale, cardY + 91 * scale, 9 * scale, colors.muted);
+  drawLabel(context, "£27.95", x + left + 20 * scale, cardY + 66 * scale, 37 * scale, colors.ink, 630);
+  drawLabel(context, "↑  12.0%", x + left + 21 * scale, cardY + 91 * scale, 10 * scale, colors.green, 620);
+  drawLabel(context, "from £24.96", x + left + 69 * scale, cardY + 91 * scale, 9 * scale, colors.muted);
   drawLine(context, x + left + 167 * scale, cardY + 19 * scale, x + left + 167 * scale, cardY + 117 * scale, colors.line);
   drawLabel(context, "Expected demand", x + left + 193 * scale, cardY + 37 * scale, 9 * scale, colors.muted);
-  drawLabel(context, "1,240", x + left + 193 * scale, cardY + 63 * scale, 19 * scale, colors.ink, 620);
+  drawLabel(context, "39", x + left + 193 * scale, cardY + 63 * scale, 19 * scale, colors.ink, 620);
   drawLabel(context, "units  ·  +8.4%", x + left + 193 * scale, cardY + 82 * scale, 8 * scale, colors.green, 500);
   drawLine(context, x + left + 343 * scale, cardY + 19 * scale, x + left + 343 * scale, cardY + 117 * scale, colors.line);
   drawLabel(context, "Gross margin", x + left + 369 * scale, cardY + 37 * scale, 9 * scale, colors.muted);
-  drawLabel(context, "53.7%", x + left + 369 * scale, cardY + 63 * scale, 19 * scale, colors.ink, 620);
+  drawLabel(context, "50.9%", x + left + 369 * scale, cardY + 63 * scale, 19 * scale, colors.ink, 620);
   drawLabel(context, "+3.7 pts vs. floor", x + left + 369 * scale, cardY + 82 * scale, 8 * scale, colors.green, 500);
   const badgeX = x + width - left - 119 * scale;
   roundedRect(context, badgeX, cardY + 47 * scale, 99 * scale, 26 * scale, 14 * scale, colors.greenWash);
-  drawLabel(context, "✓  Within policy", badgeX + 49 * scale, cardY + 64 * scale, 8 * scale, colors.green, 600, "center");
+  drawLabel(context, "✓  SKU checks passed", badgeX + 49 * scale, cardY + 64 * scale, 8 * scale, colors.green, 600, "center");
 
   const analyticsY = cardY + cardHeight + 13 * scale;
   const analyticsHeight = Math.min(185 * scale, y + height - analyticsY - 18 * scale);
@@ -126,7 +126,7 @@ function drawDashboard(context, bounds, colors) {
   roundedRect(context, x + left, analyticsY, chartWidth, analyticsHeight, 11 * scale, colors.panel, colors.line);
   roundedRect(context, checkX, analyticsY, checkWidth, analyticsHeight, 11 * scale, colors.panel, colors.line);
   drawLabel(context, "Demand by candidate price", x + left + 16 * scale, analyticsY + 22 * scale, 10 * scale, colors.ink, 580);
-  drawLabel(context, "30-day forecast", x + left + chartWidth - 16 * scale, analyticsY + 22 * scale, 8 * scale, colors.muted, 400, "right");
+  drawLabel(context, "Historical baseline", x + left + chartWidth - 16 * scale, analyticsY + 22 * scale, 8 * scale, colors.muted, 400, "right");
 
   const graphX = x + left + 27 * scale;
   const graphY = analyticsY + 43 * scale;
@@ -200,7 +200,7 @@ function drawDashboard(context, bounds, colors) {
   drawLabel(context, "DEMAND", x + left + ladderWidth - 105 * scale, footerY + 19 * scale, 6 * scale, colors.muted, 650);
   drawLabel(context, "MARGIN", x + left + ladderWidth - 47 * scale, footerY + 19 * scale, 6 * scale, colors.muted, 650);
   const candidates = [
-    ["£28.50", .92, "46%"], ["£30.00", .8, "50%"], ["£32.40", .68, "54%"], ["£35.00", .51, "58%"],
+    ["£22.95", .92, "40%"], ["£24.95", .8, "45%"], ["£27.95", .68, "51%"], ["£28.95", .51, "53%"],
   ];
   candidates.forEach(([price, demand, margin], index) => {
     const rowY = footerY + (38 + index * 17) * scale;
@@ -214,11 +214,11 @@ function drawDashboard(context, bounds, colors) {
   drawLabel(context, "Decision record", recordX + 15 * scale, footerY + 20 * scale, 9 * scale, colors.ink, 580);
   drawLine(context, recordX + 13 * scale, footerY + 29 * scale, recordX + recordWidth - 13 * scale, footerY + 29 * scale, colors.line);
   drawLabel(context, "MODEL VERSION", recordX + 15 * scale, footerY + 46 * scale, 6 * scale, colors.muted, 650);
-  drawLabel(context, "v2.4", recordX + recordWidth - 15 * scale, footerY + 46 * scale, 7 * scale, colors.secondary, 550, "right");
-  drawLabel(context, "REASON CODES", recordX + 15 * scale, footerY + 64 * scale, 6 * scale, colors.muted, 650);
-  drawLabel(context, "4 recorded", recordX + recordWidth - 15 * scale, footerY + 64 * scale, 7 * scale, colors.secondary, 550, "right");
+  drawLabel(context, "UCI demo v1", recordX + recordWidth - 15 * scale, footerY + 46 * scale, 7 * scale, colors.secondary, 550, "right");
+  drawLabel(context, "SKU CHECKS", recordX + 15 * scale, footerY + 64 * scale, 6 * scale, colors.muted, 650);
+  drawLabel(context, "Passed", recordX + recordWidth - 15 * scale, footerY + 64 * scale, 7 * scale, colors.secondary, 550, "right");
   roundedRect(context, recordX + 14 * scale, footerY + 77 * scale, recordWidth - 28 * scale, 20 * scale, 6 * scale, colors.soft);
-  drawLabel(context, "Review before publishing", recordX + recordWidth / 2, footerY + 91 * scale, 7 * scale, colors.secondary, 500, "center");
+  drawLabel(context, "Portfolio release held", recordX + recordWidth / 2, footerY + 91 * scale, 7 * scale, colors.secondary, 500, "center");
   context.restore();
 }
 
