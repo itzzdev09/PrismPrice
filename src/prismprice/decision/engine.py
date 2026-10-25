@@ -38,7 +38,7 @@ import numpy as np
 
 from prismprice import config
 from prismprice.decision.ladder import generate_ladder
-from prismprice.decision.objective import CandidateOutcome, ObjectiveWeights, score_candidate
+from prismprice.decision.objective import CandidateOutcome, ObjectiveWeights, score_candidates
 from prismprice.governance.guardrails import GuardrailEngine
 from prismprice.governance.schemas import (
     CandidateScore,
@@ -169,30 +169,38 @@ class DecisionEngine:
             allowed_endings=request.allowed_price_endings,
         )
 
-        outcomes = tuple(
-            score_candidate(
-                price=price,
-                unit_cost=request.unit_cost,
-                demand_quantiles=demand_at(price),
-                delta_clv=delta_clv_at(price) if delta_clv_at else 0.0,
-                inventory_shadow_price=request.inventory_shadow_price,
-                weights=self.weights,
-                n_draws=self.n_draws,
-                # COMMON RANDOM NUMBERS: every candidate is scored against the
-                # *same* draws. This is not a shortcut, it is the difference
-                # between ranking prices and ranking noise. Measured on a
-                # constant-elasticity curve, Monte-Carlo error on one candidate
-                # has SD ~10.8 while adjacent ladder rungs differ by only 5-10,
-                # so with independent seeds the argmax was driven by sampling
-                # error and disagreed with the analytic optimum. Sharing the
-                # draws makes each comparison paired, so the noise largely
-                # cancels in the difference and the ordering tracks the true
-                # profit curve. It also makes the whole decision reproduce
-                # exactly from the recorded seed.
-                rng=np.random.default_rng(self.seed),
-                units_available=units_available,
-            )
-            for price in ladder
+        # Model predictions are often the slowest part of serving. Keep a
+        # request-local cache so record construction reuses the candidate
+        # outputs, including the recommended price, instead of querying the
+        # model a second time.
+        demand_cache: dict[float, tuple[float, float, float]] = {}
+        clv_cache: dict[float, float] = {}
+
+        def cached_demand_at(price: float) -> tuple[float, float, float]:
+            if price not in demand_cache:
+                demand_cache[price] = demand_at(price)
+            return demand_cache[price]
+
+        def cached_delta_clv_at(price: float) -> float:
+            if price not in clv_cache:
+                clv_cache[price] = delta_clv_at(price) if delta_clv_at else 0.0
+            return clv_cache[price]
+
+        demand_predictions = [cached_demand_at(price) for price in ladder]
+        clv_predictions = [cached_delta_clv_at(price) for price in ladder]
+        # COMMON RANDOM NUMBERS: one seeded vector is broadcast over every
+        # candidate. This preserves paired candidate comparisons and makes
+        # simulation cheaper by avoiding one random array per price.
+        outcomes = score_candidates(
+            prices=ladder,
+            unit_cost=request.unit_cost,
+            demand_quantiles=demand_predictions,
+            delta_clv=clv_predictions,
+            inventory_shadow_price=request.inventory_shadow_price,
+            weights=self.weights,
+            n_draws=self.n_draws,
+            rng=np.random.default_rng(self.seed),
+            units_available=units_available,
         )
 
         evaluation = self.guardrails.evaluate_ladder(ladder, request)
@@ -215,8 +223,8 @@ class DecisionEngine:
             recommended=recommended,
             rung=rung,
             evaluation=evaluation,
-            demand_at=demand_at,
-            delta_clv_at=delta_clv_at,
+            demand_at=cached_demand_at,
+            delta_clv_at=cached_delta_clv_at if delta_clv_at else None,
             elasticity=elasticity,
         )
 

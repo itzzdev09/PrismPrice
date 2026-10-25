@@ -48,6 +48,7 @@ above — so the asymmetry L2 measured survives into the decision.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -59,6 +60,7 @@ from prismprice import config
 __all__ = [
     "CandidateOutcome",
     "ObjectiveWeights",
+    "score_candidates",
     "sample_demand",
     "score_candidate",
 ]
@@ -221,35 +223,106 @@ def score_candidate(
     Raises:
         ValueError: on a non-positive price.
     """
-    if price <= 0:
-        raise ValueError(f"price must be > 0, got {price}")
+    return score_candidates(
+        prices=(price,),
+        unit_cost=unit_cost,
+        demand_quantiles=(demand_quantiles,),
+        delta_clv=(delta_clv,),
+        inventory_shadow_price=inventory_shadow_price,
+        weights=weights,
+        n_draws=n_draws,
+        rng=rng,
+        units_available=units_available,
+    )[0]
+
+
+def score_candidates(
+    prices: Sequence[float],
+    unit_cost: float,
+    demand_quantiles: Sequence[tuple[float, float, float]],
+    delta_clv: Sequence[float] | None = None,
+    inventory_shadow_price: float = 0.0,
+    weights: ObjectiveWeights | None = None,
+    n_draws: int = config.DEFAULT_MONTE_CARLO_DRAWS,
+    rng: np.random.Generator | None = None,
+    units_available: float | None = None,
+) -> tuple[CandidateOutcome, ...]:
+    """Score several candidates together using the same Monte-Carlo draws.
+
+    Candidate comparisons already use common random numbers. Generating one
+    shared vector and broadcasting it across the ladder preserves that result
+    while avoiding repeated random-number generation and Python/NumPy setup for
+    every price.
+    """
+    if len(prices) != len(demand_quantiles):
+        raise ValueError("prices and demand_quantiles must have the same length")
+    if delta_clv is not None and len(delta_clv) != len(prices):
+        raise ValueError("delta_clv must have the same length as prices")
+    for price in prices:
+        if price <= 0:
+            raise ValueError(f"price must be > 0, got {price}")
+    if len(prices) == 0:
+        return ()
 
     dials = weights or ObjectiveWeights()
-    p10, p50, p90 = demand_quantiles
-    demand = sample_demand(p10, p50, p90, n_draws=n_draws, rng=rng)
+    quantiles = np.asarray(demand_quantiles, dtype=np.float64)
+    p10, p50, p90 = quantiles.T
+    invalid_median = np.flatnonzero(p50 <= 0)
+    if invalid_median.size:
+        index = int(invalid_median[0])
+        raise ValueError(f"p50 must be > 0 to sample a lognormal, got {p50[index]}")
+    invalid_order = np.flatnonzero(~((p10 <= p50) & (p50 <= p90)))
+    if invalid_order.size:
+        index = int(invalid_order[0])
+        raise ValueError(
+            f"quantiles must be ordered, got p10={p10[index]}, p50={p50[index]}, "
+            f"p90={p90[index]}. A crossed interval is an upstream defect, not something "
+            "to sort away."
+        )
+    if n_draws < 1:
+        raise ValueError(f"n_draws must be >= 1, got {n_draws}")
+
+    generator = rng or np.random.default_rng(config.DEFAULT_SEED)
+    z = generator.standard_normal(n_draws)
+    log_median = np.log(p50)
+    sigma_low = np.maximum((log_median - np.log(np.maximum(p10, 1e-9))) / _Z_90, 1e-9)
+    sigma_high = np.maximum((np.log(np.maximum(p90, p50)) - log_median) / _Z_90, 1e-9)
+    sigma = np.where(z < 0.0, sigma_low[:, None], sigma_high[:, None])
+    demand = np.exp(log_median[:, None] + z[None, :] * sigma)
 
     sold = demand if units_available is None else np.minimum(demand, units_available)
-    unit_margin = price - unit_cost - inventory_shadow_price
-    profit = sold * unit_margin
+    margins = np.asarray(prices, dtype=np.float64) - unit_cost - inventory_shadow_price
+    profit = sold * margins[:, None]
+    expected_profit = np.mean(profit, axis=1)
+    expected_units = np.mean(sold, axis=1)
 
-    expected_profit = float(np.mean(profit))
-    cvar = _conditional_value_at_risk(profit, dials.cvar_alpha)
-    shortfall = max(expected_profit - cvar, 0.0)
-
-    j_score = (
-        expected_profit + dials.clv_weight_lambda * delta_clv - dials.cvar_weight_gamma * shortfall
+    n_tail = max(1, int(np.floor(dials.cvar_alpha * n_draws)))
+    cvar = np.mean(np.partition(profit, n_tail - 1, axis=1)[:, :n_tail], axis=1)
+    shortfall = np.maximum(expected_profit - cvar, 0.0)
+    clv_values = (
+        np.zeros(len(prices), dtype=np.float64)
+        if delta_clv is None
+        else np.asarray(delta_clv, dtype=np.float64)
+    )
+    scores = (
+        expected_profit
+        + dials.clv_weight_lambda * clv_values
+        - dials.cvar_weight_gamma * shortfall
     )
 
-    return CandidateOutcome(
-        price=price,
-        expected_units=float(np.mean(sold)),
-        expected_profit=expected_profit,
-        delta_clv=delta_clv,
-        cvar=cvar,
-        tail_shortfall=shortfall,
-        j_score=float(j_score),
-        n_draws=n_draws,
-        cvar_alpha=dials.cvar_alpha,
+    return tuple(
+        CandidateOutcome(
+            price=float(price),
+            expected_units=float(expected_units[index]),
+            expected_profit=float(expected_profit[index]),
+            delta_clv=float(clv_values[index]),
+            cvar=float(cvar[index]),
+            tail_shortfall=float(shortfall[index]),
+            j_score=float(scores[index]),
+            n_draws=n_draws,
+            cvar_alpha=dials.cvar_alpha,
+        )
+        for index, price in enumerate(prices)
     )
 
 

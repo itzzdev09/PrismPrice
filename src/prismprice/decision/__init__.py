@@ -18,6 +18,7 @@ from prismprice.decision.objective import (
     ObjectiveWeights,
     sample_demand,
     score_candidate,
+    score_candidates,
 )
 from prismprice.decision.robust_markdown import (
     RegretRobustPolicy,
@@ -45,6 +46,7 @@ __all__ = [
     "generate_ladder",
     "sample_demand",
     "score_candidate",
+    "score_candidates",
     "simulate_policy",
     "simulate_robust_policy",
     "snap_to_ending",
