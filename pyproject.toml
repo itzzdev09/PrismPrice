@@ -97,6 +97,7 @@ prismprice = [
     "web/*.html",
     "web/*.css",
     "web/*.js",
+    "web/*.json",
     "web/vendor/gsap/*.js",
     "web/vendor/gsap/NOTICE.txt",
 ]

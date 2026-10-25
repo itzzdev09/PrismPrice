@@ -119,7 +119,7 @@
 .story-caption { position: absolute; z-index: 2; right: max(32px, calc((100vw - var(--content-width)) / 2)); bottom: 25px; display: flex; align-items: center; gap: 10px; color: var(--ink-tertiary); font-size: 8px; font-weight: 600; letter-spacing: .11em; }
 
 
-.workbench-section, .principles-section, .guardrails-section { padding-block: 110px 0; scroll-margin-top: 76px; }
+.workbench-section, .principles-section, .guardrails-section, .demo-data-section { padding-block: 110px 0; scroll-margin-top: 76px; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 48px; margin-bottom: 34px; }
 .section-heading .eyebrow, .guardrails-copy .eyebrow { margin-bottom: 13px; }
 .section-heading h2, .guardrails-copy h2 { font-size: clamp(39px, 4.5vw, 56px); line-height: 1.04; }
@@ -135,8 +135,8 @@
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
 .field { display: grid; gap: 7px; margin-bottom: 15px; color: var(--ink-secondary); font-size: 11px; font-weight: 570; }
 .field small { color: var(--ink-tertiary); font-size: 10px; font-weight: 400; }
-.field > input:not([type="checkbox"]) { width: 100%; min-width: 0; min-height: 42px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface); color: var(--ink); font-size: 13px; transition: border-color .2s ease, box-shadow .2s ease; }
-.field > input:not([type="checkbox"]):focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent); }
+.field > input:not([type="checkbox"]), .field > select { width: 100%; min-width: 0; min-height: 42px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface); color: var(--ink); font-size: 13px; transition: border-color .2s ease, box-shadow .2s ease; }
+.field > input:not([type="checkbox"]):focus, .field > select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent); }
 .input-affix { display: flex; min-height: 42px; align-items: center; padding-inline: 11px; border: 1px solid var(--line-strong); border-radius: 11px; background: var(--surface); transition: border-color .2s ease, box-shadow .2s ease; }
 .input-affix:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent); }
 .input-affix i { color: var(--ink-tertiary); font-size: 12px; font-style: normal; }

@@ -1,5 +1,7 @@
-const money = (value) => new Intl.NumberFormat("en-US", {
-  style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
+const currency = document.documentElement.dataset.currency || "GBP";
+const locale = currency === "GBP" ? "en-GB" : "en-US";
+const money = (value) => new Intl.NumberFormat(locale, {
+  style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(value);
 const number = (value, digits = 1) => new Intl.NumberFormat("en-US", {
   maximumFractionDigits: digits,

@@ -28,7 +28,7 @@ export function buildDecisionRequest(formData, now = () => new Date().toISOStrin
   if (marginFloor < 0 || marginFloor > 100) throw new Error("Margin floor must be between 0% and 100%.");
   if (movementCap < 0 || movementCap > 50) throw new Error("Price move cap must be between 0% and 50%.");
 
-  const asOf = now();
+  const asOf = rawValue(formData, "as_of") || now();
   const body = {
     sku,
     as_of: asOf,

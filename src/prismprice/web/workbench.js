@@ -40,11 +40,11 @@ export function initWorkbench(documentRoot = document, api = createPricingApi())
       const available = health.model_store_available;
       serviceState.className = `service-state${available ? "" : " offline"}`;
       serviceLabel.textContent = available
-        ? (demo ? "Demo service online" : "Pricing API online")
+        ? (demo ? "Historical dataset demo online" : "Pricing API online")
         : "Model store unavailable";
       modelLabel.textContent = !available
         ? "Model store unavailable · decisions will hold current prices"
-        : demo ? "Sample model · demo only" : `Policy ${health.policy_version} · connected`;
+        : demo ? "Online Retail II · historical demo" : `Policy ${health.policy_version} · connected`;
       modelLabel.dataset.mode = available ? (demo ? "demo" : "live") : "offline";
       retryButton.hidden = available;
       return health;

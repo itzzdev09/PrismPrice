@@ -31,7 +31,7 @@ function roundedRect(context, x, y, width, height, radius, fill, stroke) {
 
 function drawLabel(context, value, x, y, size, color, weight = 400, align = "left") {
   context.fillStyle = color;
-  context.font = `${weight} ${size}px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif`;
+  context.font = `£{weight} £{size}px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif`;
   context.textAlign = align;
   context.textBaseline = "alphabetic";
   context.fillText(value, x, y);
@@ -103,9 +103,9 @@ function drawDashboard(context, bounds, colors) {
   const cardHeight = 136 * scale;
   roundedRect(context, x + left, cardY, innerWidth, cardHeight, 12 * scale, colors.panel, colors.line);
   drawLabel(context, "RECOMMENDED PRICE", x + left + 20 * scale, cardY + 24 * scale, 8 * scale, colors.muted, 650);
-  drawLabel(context, "$32.40", x + left + 20 * scale, cardY + 66 * scale, 37 * scale, colors.ink, 630);
+  drawLabel(context, "£32.40", x + left + 20 * scale, cardY + 66 * scale, 37 * scale, colors.ink, 630);
   drawLabel(context, "↑  8.0%", x + left + 21 * scale, cardY + 91 * scale, 10 * scale, colors.green, 620);
-  drawLabel(context, "from $30.00", x + left + 69 * scale, cardY + 91 * scale, 9 * scale, colors.muted);
+  drawLabel(context, "from £30.00", x + left + 69 * scale, cardY + 91 * scale, 9 * scale, colors.muted);
   drawLine(context, x + left + 167 * scale, cardY + 19 * scale, x + left + 167 * scale, cardY + 117 * scale, colors.line);
   drawLabel(context, "Expected demand", x + left + 193 * scale, cardY + 37 * scale, 9 * scale, colors.muted);
   drawLabel(context, "1,240", x + left + 193 * scale, cardY + 63 * scale, 19 * scale, colors.ink, 620);
@@ -200,7 +200,7 @@ function drawDashboard(context, bounds, colors) {
   drawLabel(context, "DEMAND", x + left + ladderWidth - 105 * scale, footerY + 19 * scale, 6 * scale, colors.muted, 650);
   drawLabel(context, "MARGIN", x + left + ladderWidth - 47 * scale, footerY + 19 * scale, 6 * scale, colors.muted, 650);
   const candidates = [
-    ["$28.50", .92, "46%"], ["$30.00", .8, "50%"], ["$32.40", .68, "54%"], ["$35.00", .51, "58%"],
+    ["£28.50", .92, "46%"], ["£30.00", .8, "50%"], ["£32.40", .68, "54%"], ["£35.00", .51, "58%"],
   ];
   candidates.forEach(([price, demand, margin], index) => {
     const rowY = footerY + (38 + index * 17) * scale;
@@ -296,8 +296,8 @@ export function initProductStory(documentRoot = document) {
       else button.removeAttribute("aria-current");
     });
     stage.dataset.activeStep = String(nextIndex);
-    if (caption) caption.textContent = `${String(nextIndex + 1).padStart(2, "0")} / ${String(steps.length).padStart(2, "0")}`;
-    if (progressFill && changed) progressFill.style.width = `${((nextIndex + 0.5) / steps.length) * 100}%`;
+    if (caption) caption.textContent = `£{String(nextIndex + 1).padStart(2, "0")} / £{String(steps.length).padStart(2, "0")}`;
+    if (progressFill && changed) progressFill.style.width = `£{((nextIndex + 0.5) / steps.length) * 100}%`;
   }
 
   function drawFrame(index = frameIndex) {
@@ -339,7 +339,7 @@ export function initProductStory(documentRoot = document) {
   function handleProgress(progress) {
     const stepIndex = Math.min(steps.length - 1, Math.floor(progress * steps.length));
     setActiveStep(stepIndex);
-    if (progressFill) progressFill.style.width = `${progress * 100}%`;
+    if (progressFill) progressFill.style.width = `£{progress * 100}%`;
   }
 
   function goToStep(index) {

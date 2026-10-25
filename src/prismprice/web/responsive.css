@@ -14,6 +14,10 @@
   .principles-grid { grid-template-columns: repeat(2, 1fr); }
   .principle-card { min-height: 210px; }
   .guardrails-card { gap: 34px; padding: 40px 36px; }
+  .demo-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .demo-data-grid { grid-template-columns: 1fr; }
+  .demo-insights { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: 1fr; }
+  .demo-top-products { grid-template-columns: 175px minmax(0, 1fr); gap: 18px; }
 }
 
 @media (max-width: 740px) {
@@ -55,7 +59,7 @@
   .hero-capabilities > div { grid-template-columns: 24px 1fr; column-gap: 7px; }
   .hero-capabilities strong { font-size: 11px; }
   .hero-capabilities > div > span:last-child { font-size: 9px; }
-  .workbench-section, .principles-section, .guardrails-section { padding-top: 82px; }
+  .workbench-section, .principles-section, .guardrails-section, .demo-data-section { padding-top: 82px; }
 
   .story-intro { align-items: flex-start; flex-direction: column; gap: 13px; margin-bottom: 20px; }
   .story-intro h2 { font-size: clamp(39px, 9vw, 54px); }
@@ -98,6 +102,12 @@
   .result-empty { min-height: 350px; }
   .principle-card { min-height: 195px; padding: 20px 18px; }
   .guardrails-card { grid-template-columns: 1fr; gap: 28px; padding: 33px 28px; }
+  .demo-source-banner { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .demo-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo-insights { grid-template-columns: 1fr; }
+  .demo-top-products { grid-template-columns: 1fr; gap: 14px; margin-top: 31px; }
+  .demo-product-row { grid-template-columns: 25px minmax(0, 1fr) 70px; }
+  .demo-product-row button { grid-column: 3; }
   .site-footer { min-height: 82px; flex-wrap: wrap; gap: 9px; margin-top: 68px; padding-block: 14px; }
   .site-footer p { order: 3; width: 100%; margin: 0; }
   .site-footer > div { gap: 14px; }
@@ -146,7 +156,17 @@
   .hero-capabilities strong { font-size: 12px; }
   .hero-capabilities > div > span:last-child { font-size: 10px; }
   .scroll-cue { margin-top: 15px; }
-  .workbench-section, .principles-section, .guardrails-section { padding-top: 66px; }
+  .workbench-section, .principles-section, .guardrails-section, .demo-data-section { padding-top: 66px; }
+  .demo-chart-card { padding: 16px 13px 13px; }
+  .demo-card-heading { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .demo-monthly-chart { height: 170px; gap: 2px; margin-top: 17px; }
+  .demo-month-label { font-size: 7px; }
+  .demo-product-row { grid-template-columns: 22px minmax(0, 1fr) auto; gap: 5px 8px; }
+  .demo-product-rank { grid-row: span 2; }
+  .demo-product-details { grid-column: 2 / 4; }
+  .demo-product-revenue { grid-column: 2; text-align: left; }
+  .demo-product-row button { grid-column: 3; grid-row: 2; }
+  .demo-product-row button { padding-inline: 7px; font-size: 7px; }
   .workbench-shell { border-radius: 22px; }
   .workbench-topline { min-height: 52px; padding-inline: 15px; }
   .live-tag { font-size: 10px; }.demo-tag { padding: 5px 8px; font-size: 8px; }
