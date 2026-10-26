@@ -82,7 +82,7 @@
 .demo-metric-card > span { color: var(--ink-tertiary); font-size: 9px; font-weight: 550; }.demo-metric-card strong { overflow: hidden; font-size: clamp(17px, 2.1vw, 24px); font-weight: 630; letter-spacing: -.045em; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }.demo-metric-card small { color: var(--ink-tertiary); font-size: 8px; line-height: 1.4; }
 .demo-data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .demo-chart-card { min-width: 0; padding: 20px 21px 15px; border-radius: 15px; }
-.demo-monthly-card, .demo-elasticity-card { grid-column: 1 / -1; }
+.demo-monthly-card { grid-column: 1 / -1; }
 .demo-card-heading { display: flex; align-items: end; justify-content: space-between; gap: 15px; }.demo-card-heading .eyebrow { margin-bottom: 4px; font-size: 8px; }.demo-card-heading h3, .demo-top-products h3 { margin: 0; font-size: 17px; font-weight: 620; letter-spacing: -.035em; }.demo-card-heading > span { color: var(--ink-tertiary); font-size: 8px; white-space: nowrap; }
 .demo-chart-controls { display: flex; flex: 0 0 auto; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: var(--round-pill); background: var(--surface-soft); }
 .demo-chart-controls button { padding: 5px 10px; border: 0; border-radius: var(--round-pill); background: transparent; color: var(--ink-tertiary); cursor: pointer; font-size: 9px; font-weight: 600; }
