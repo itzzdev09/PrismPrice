@@ -15,8 +15,8 @@
   .principle-card { min-height: 210px; }
   .guardrails-card { gap: 34px; padding: 40px 36px; }
   .demo-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .demo-data-grid { grid-template-columns: 1fr; }
-  .demo-insights { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: 1fr; }
+  .demo-data-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo-insights { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .demo-top-products { grid-template-columns: 175px minmax(0, 1fr); gap: 18px; }
 }
 
@@ -103,6 +103,8 @@
   .principle-card { min-height: 195px; padding: 20px 18px; }
   .guardrails-card { grid-template-columns: 1fr; gap: 28px; padding: 33px 28px; }
   .demo-source-banner { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .demo-data-grid { grid-template-columns: 1fr; }
+  .demo-monthly-card, .demo-elasticity-card { grid-column: auto; }
   .demo-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .demo-insights { grid-template-columns: 1fr; }
   .demo-top-products { grid-template-columns: 1fr; gap: 14px; margin-top: 31px; }
