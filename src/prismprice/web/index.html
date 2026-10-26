@@ -162,28 +162,46 @@
       </div>
       <div class="demo-metrics" id="demo-metrics" aria-live="polite" data-reveal></div>
       <div class="demo-data-grid" data-reveal>
-        <article class="demo-chart-card">
-          <div class="demo-card-heading"><div><p class="eyebrow">Observed sales</p><h3>Monthly net revenue</h3></div><span>GBP · Dec 2009–Dec 2011</span></div>
+        <article class="demo-chart-card demo-monthly-card">
+          <div class="demo-card-heading">
+            <div><p class="eyebrow">Observed sales</p><h3 id="demo-monthly-title">Monthly net revenue</h3></div>
+            <div class="demo-chart-controls" role="group" aria-label="Monthly sales metric">
+              <button type="button" data-monthly-metric="revenue" aria-pressed="true">Revenue</button>
+              <button type="button" data-monthly-metric="units" aria-pressed="false">Units</button>
+            </div>
+          </div>
+          <p class="demo-chart-period">GBP or net units · Dec 2009–Dec 2011</p>
           <div class="demo-monthly-chart" id="demo-monthly-chart" role="img" aria-label="Monthly net revenue chart loading"></div>
-          <p class="demo-chart-note">Daily demand is net of recorded returns. December 2011 covers the first nine days only.</p>
+          <p class="demo-chart-note">December 2011 covers the first nine days only; recorded returns are netted from sales.</p>
         </article>
-        <div class="demo-insights">
-          <article class="demo-insight-card">
-            <span class="demo-insight-index">01 / SEASONALITY</span>
-            <h3 id="demo-season-title">Finding the seasonal peak…</h3>
-            <p id="demo-season-copy"></p>
-          </article>
-          <article class="demo-insight-card">
-            <span class="demo-insight-index">02 / MODEL EVIDENCE</span>
-            <h3 id="demo-elasticity-title">Checking price signal…</h3>
-            <p id="demo-elasticity-copy"></p>
-          </article>
-          <article class="demo-insight-card demo-insight-guardrail">
-            <span class="demo-insight-index">03 / GOVERNANCE</span>
-            <h3 id="demo-guardrail-title">Reviewing the catalogue move…</h3>
-            <p id="demo-guardrail-copy"></p>
-          </article>
-        </div>
+        <article class="demo-chart-card">
+          <div class="demo-card-heading"><div><p class="eyebrow">Observed pattern</p><h3>Seasonality index</h3></div><span>100 = average month</span></div>
+          <div class="demo-seasonality-chart" id="demo-seasonality-chart" role="img" aria-label="Monthly seasonality chart loading"></div>
+          <p class="demo-chart-note">Average net revenue by calendar month, relative to the average of complete months. Partial December 2011 is excluded.</p>
+        </article>
+        <article class="demo-chart-card demo-elasticity-card">
+          <div class="demo-card-heading"><div><p class="eyebrow">Modeled scenario · not a forecast</p><h3>Possible demand response to a price move</h3></div><span>Elasticity P10 · median · P90</span></div>
+          <div class="demo-elasticity-chart" id="demo-elasticity-chart" role="img" aria-label="Modeled demand response chart loading"></div>
+          <div class="demo-chart-legend" aria-hidden="true"><span class="legend-range"><i></i> P10–P90 estimate range</span><span class="legend-median"><i></i> Median estimate</span></div>
+          <p class="demo-chart-note">Demand response is calculated from the historical elasticity estimates. Price changes were not randomized, so treat this as a directional scenario rather than a causal prediction.</p>
+        </article>
+      </div>
+      <div class="demo-insights" data-reveal>
+        <article class="demo-insight-card">
+          <span class="demo-insight-index">01 / SALES TREND</span>
+          <h3 id="demo-season-title">Comparing matched months…</h3>
+          <p id="demo-season-copy"></p>
+        </article>
+        <article class="demo-insight-card">
+          <span class="demo-insight-index">02 / PRICE SENSITIVITY</span>
+          <h3 id="demo-elasticity-title">Checking price signal…</h3>
+          <p id="demo-elasticity-copy"></p>
+        </article>
+        <article class="demo-insight-card demo-insight-guardrail">
+          <span class="demo-insight-index">03 / GOVERNANCE</span>
+          <h3 id="demo-guardrail-title">Reviewing the catalogue move…</h3>
+          <p id="demo-guardrail-copy"></p>
+        </article>
       </div>
       <div class="demo-top-products" data-reveal>
         <div><p class="eyebrow">From the modelled catalogue</p><h3>Products to explore</h3></div>
