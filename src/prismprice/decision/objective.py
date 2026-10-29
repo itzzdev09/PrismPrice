@@ -305,9 +305,7 @@ def score_candidates(
         else np.asarray(delta_clv, dtype=np.float64)
     )
     scores = (
-        expected_profit
-        + dials.clv_weight_lambda * clv_values
-        - dials.cvar_weight_gamma * shortfall
+        expected_profit + dials.clv_weight_lambda * clv_values - dials.cvar_weight_gamma * shortfall
     )
 
     return tuple(

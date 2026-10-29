@@ -20,7 +20,12 @@ from prismprice.serving.app import create_app
 
 _WEB_DIR = Path(__file__).resolve().parent / "web"
 _DEMO_DATA_PATH = _WEB_DIR / "demo-data.json"
-_DEFAULT_DEMAND = {"baseline_units": 48.0, "current_price": 30.0, "elasticity": -1.35, "spread": 0.2}
+_DEFAULT_DEMAND = {
+    "baseline_units": 48.0,
+    "current_price": 30.0,
+    "elasticity": -1.35,
+    "spread": 0.2,
+}
 
 
 def _sample_demand(
