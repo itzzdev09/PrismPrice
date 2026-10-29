@@ -60,9 +60,9 @@ from prismprice import config
 __all__ = [
     "CandidateOutcome",
     "ObjectiveWeights",
-    "score_candidates",
     "sample_demand",
     "score_candidate",
+    "score_candidates",
 ]
 
 #: z at the 10th/90th percentile of the standard normal. The half-distance from
