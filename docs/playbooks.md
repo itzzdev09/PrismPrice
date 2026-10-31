@@ -2,7 +2,7 @@
 
 What to do when something is wrong. Written for the person on call at 02:00 during the nightly catalogue refresh, who did not build this.
 
-**Status:** specification. These procedures describe the system as designed; only the governance layer exists today (README §0). Steps referencing unbuilt components are marked ⚪.
+**Status:** operational procedure specification. Supporting code exists for several referenced areas, including governance, serving, learning, and observability, but this repository does not establish a live production deployment or on-call integration. The ⚪ markers identify steps that still need verification against the deployed workflow or its operational wiring. See the [architecture modernization plan](architecture-modernization.md) for the current integration boundary and staged readiness gates.
 
 **The standing rule:** a bad price is worse than no price. When in doubt, hold the previous price and escalate. Nobody has ever been fired for not changing a price for one day.
 

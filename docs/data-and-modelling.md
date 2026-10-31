@@ -2,7 +2,7 @@
 
 This document details the data generation, dataset augmentation, demand un-censoring, and machine learning methods used across PrismPrice.
 
-> **Status.** §1 (synthetic generator), §2 (UCI augmentation) and §3 (un-censoring) are implemented; §4 (cold-start embeddings) is implemented apart from the encoder itself. See [README §0](../README.md#0-status). The declared assumptions here are binding: the cost model in §2.1 in particular is an *assumption*, not a measurement, and any margin figure derived from it inherits that. `AssumptionSet.describe()` prints them alongside the data.
+> **Status.** The synthetic generator, UCI augmentation, un-censoring, and embedding-prior components are present in code; consult each section for the encoder and data limitations. This does not mean these methods have been validated on retailer data or are wired into the serving path. See the [architecture modernization plan](architecture-modernization.md) for integration and release gates. The declared assumptions here are binding: the cost model in §2.1 in particular is an *assumption*, not a measurement, and any margin figure derived from it inherits that. `AssumptionSet.describe()` prints them alongside the data.
 >
 > **Compute.** Every model described here trains on GPU. `prismprice.compute.require_gpu()` raises rather than falling back to CPU — see [README §8.1](../README.md#81-gpu-only-compute-policy).
 

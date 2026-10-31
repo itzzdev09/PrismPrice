@@ -2,7 +2,7 @@
 
 Expands README §6. Every metric here has a definition precise enough to implement, an owner, a threshold, and a stated action when the threshold is breached. A metric with no action attached is decoration and does not belong on a dashboard.
 
-**Status:** the metric computations in §1-§5 and the circuit breakers in §6 are implemented in [`prismprice.observability`](../src/prismprice/observability/) and tested. **No dashboard is built** — these are the numbers a dashboard would render, not the rendering. §7 remains a statement of intent about what is deliberately not measured.
+**Status:** the metric computations in §1-§5, circuit breakers in §6, and a generated run-review dashboard are implemented in [`prismprice.observability`](../src/prismprice/observability/). The dashboard is a report generated from a run, not a continuously connected production monitoring service; live telemetry, alert ownership, and outcome joins remain deployment work. §7 remains a statement of intent about what is deliberately not measured. See the [architecture modernization plan](architecture-modernization.md) for operational gates.
 
 ---
 

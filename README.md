@@ -18,6 +18,10 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. It co
 
 The repository includes model evaluation against synthetic data, price optimization with business guardrails, explainable decision records, a FastAPI pricing service, and a browser workbench. Validate models and policy settings against representative business data before using recommendations operationally.
 
+### Architecture status
+
+The repository contains implemented model and governance components, but it is not yet a production-connected pricing platform. The serving API currently uses injected prediction callables; the local DuckDB data/decision store is not automatically wired into that request path, and retailer source feeds and a production model registry are not included. See the [architecture review and modernization plan](docs/architecture-modernization.md) for the evidence-based baseline, target design, model release gates, and staged integration plan. The existing [component specification](docs/architecture.md) describes the current modules and their intended contracts.
+
 ---
 
 ## Quickstart

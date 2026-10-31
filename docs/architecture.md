@@ -2,7 +2,7 @@
 
 Engineering detail behind the [README](../README.md). This is the document to read before writing code in any layer.
 
-> **Status.** Every component section now describes code that exists. §4.6b (sequential markdown) was not in the original specification and was added after the fact. Every other component section is a specification for code that does not yet exist — see [README §0](../README.md#0-status). Sections describing unbuilt components are marked ⚪.
+> **Status.** This is the component reference, not a claim of production readiness. The green markers below mean that code exists in the repository; they do not mean the component is connected to production data or deployed. Retention, the decision engine, and learning utilities are implemented in code; older versions of this reference marked them as specification-only. See the [architecture review and modernization plan](architecture-modernization.md) for the current integration gaps, target design, and staged release gates.
 
 ---
 
@@ -121,7 +121,7 @@ checks:
 
 ---
 
-### 4.4 Retention & Deep CLV model (`estimation/retention.py`) — ⚪ spec only
+### 4.4 Retention & Deep CLV model (`estimation/retention.py`) — 🟢 code present
 
 - **Output:** $\Delta\text{CLV}_i(p_i)$ — change in discounted expected future margin over horizon $H$.
 - **Method:** Deep Survival Model (Cox Proportional Hazards / PyTorch) with time-varying covariates.
@@ -149,7 +149,7 @@ checks:
 
 ---
 
-### 4.6 Decision engine & Objective (`decision/`) — ⚪ spec only
+### 4.6 Decision engine & Objective (`decision/`) — 🟢 code present
 
 The objective function optimizes expected category portfolio contribution plus customer relationship impact minus risk penalties:
 
@@ -252,7 +252,7 @@ GuardrailResult(
 
 ---
 
-### 4.8 Learning layer (`learning/`) — ⚪ spec only
+### 4.8 Learning layer (`learning/`) — 🟢 code present; live experiment integration remains a release gate
 
 - **Designed experiments:** Switchback and geo/store splits by category.
 - **Safe Contextual Bandits:** Exploration with lower bounds ($1 - \alpha$ of baseline policy) and monetary risk budgets.
@@ -342,19 +342,25 @@ Four properties of this record are enforced by the model, not by convention:
 
 ---
 
-## 7. What "done" means per phase
+## 7. Implementation status and release gates
 
-| Phase | Status | Executable Gate |
-| --- | --- | --- |
-| 0 Foundation | 🟢 met | `ruff`, `mypy --strict` and `pytest` green in CI on Python 3.10–3.12 |
-| 1 Data & Features | 🟢 met | Quality report generated with 12 gate codes; leakage test passes; Tobit un-censoring removes ~78% of censoring error against known latent demand |
-| 6 Governance | 🟢 met | Property tests prove 0 guardrail violations; every `GuardrailCode` has an implementation; regulatory constraints fail closed |
-| 2 Demand | ⚪ | Quantile LightGBM p10/p90 empirical coverage within $\pm 3\text{pp}$ |
-| 3 Causal Elasticity | ⚪ | DML recovers synthetic ground-truth $\beta$ within CI on $\ge 90\%$ of SKUs |
-| 4 Retention | ⚪ | Deep Survival cohort curve MAE below threshold on held-out test window |
-| 5 Decision | 🟢 met | Category backtest beats cost-plus (+33.3%) and competitor-match (+14.8%); sequential markdown MDP beats a hindsight-chosen static price and myopic pricing |
-| 7 Serving | ⚪ | API contracts pass; chaos test (killed model store) degrades cleanly to Level 5 (`CRITICAL_MAINTAIN_PREV`) |
-| 8 Learning | ⚪ | OPE recovers known policy value on synthetic logs within tolerance |
+The former status table mixed “code exists” with “ready for live use.” This table keeps them separate. Passing synthetic or repository-level checks is useful evidence about implementation; it does not validate performance on a retailer's market.
+
+| Area | Repository status | Gate before operational use |
+|---|---|---|
+| Foundation | Package, typing/lint configuration, and CI workflow are present. | Confirm supported Python matrix and dependency builds remain green for the release. |
+| Data & features | Contracts, local DuckDB ingestion, point-in-time feature assembly, uncensoring, and embedding-prior code are present. | Connect approved source feeds; prove freshness, lineage, leakage controls, and feature parity on retailer data. |
+| Demand | Quantile demand estimator is present. | Demonstrate temporal quantile coverage, calibration, and baseline performance by approved category and segment. |
+| Causal elasticity | DML estimator and diagnostics are present. | Establish overlap, sensitivity, and credible causal validation; block unsupported price extrapolation. |
+| Retention / CLV | Survival and retention code is present. | Validate censoring, calibration, customer linkage, and incremental causal interpretation on representative data. |
+| Decision | Candidate scoring, guardrails, and markdown methods are present. | Approve the economic objective and policy locally; validate portfolio and inventory behavior on representative backtests. |
+| Governance | Typed guardrails, reason codes, provenance, and immutable record schema are present. | Approve jurisdiction-specific policies and verify durable records at the serving boundary. |
+| Serving | FastAPI application, service, in-memory model-store adapter, and service tests are present. | Wire a versioned artifact bundle and durable decision repository; define identity, SLOs, and production failure behavior. |
+| Learning | Experiment design, bandit, and off-policy evaluation modules are present. | Validate propensities and realized-outcome joins; approve a controlled experiment and risk budget before exploration. |
+| Observability | KPI, evaluation, drift, alert, and dashboard-generation modules are present. | Connect production telemetry and alert ownership; distinguish shadow, approved, applied, and control outcomes. |
+
+
+The most important next gate is integration: a single decision must resolve point-in-time context and one immutable model/policy bundle, score candidates, apply hard constraints, persist its complete record, and return a recommendation for review. The [modernization plan](architecture-modernization.md) defines that slice and its dependencies.
 
 ---
 
