@@ -78,6 +78,9 @@ jobs:
         run: ruff format --check src tests
 
       - name: Type check
+        # NumPy's stubs use Python 3.12 type-alias syntax that mypy cannot parse
+        # under Python 3.10. The 3.11 and 3.12 jobs run the full type check.
+        if: matrix.python-version != '3.10'
         run: mypy
 
       - name: Parameter provenance audit
