@@ -210,6 +210,21 @@ Point-in-time-correct feature assembly: trailing demand, price history, referenc
 - **Retention & CLV model** — Deep Survival model (e.g., Cox Proportional Hazards) with time-varying covariates. Attributes churn risk strictly to the price-vs-reference shock, supplying $\Delta\text{CLV}(p)$.
 - **Competitor model** — estimates competitor reaction functions (Game-Theoretic Response) to prevent destructive algorithmic price wars.
 
+#### Demand model second opinion
+
+The default demand-model comparison runs the LightGBM model beside an independent scikit-learn quantile booster on the **same expanding, time-ordered folds**. It reports each candidate's WAPE, pinball loss, interval coverage, tail placement, and per-fold scores. A candidate is named only when its pooled interval and tail calibration pass their gates; the comparison never switches the live pricing model automatically.
+
+```python
+from prismprice.estimation import compare_demand_models
+
+# `training_frame` comes from FeatureBuilder.training_frame() and carries an
+# (sku, as_of) index, so every comparison fold respects the time boundary.
+comparison = compare_demand_models(training_frame, n_folds=4)
+print(comparison.as_dict())
+```
+
+Treat `selected_model` as an offline challenger result. Review the fold scorecards and business outcomes before any separate release decision.
+
 ### L3 — Decision
 Generate a discrete candidate ladder (snapped to psychological price endings — real retail prices end .95/.99, and threshold effects are real). Monte-Carlo each candidate through the demand distribution. Handle **cross-price effects within category** so a discount on one SKU is not booked as a win when it merely cannibalised its neighbour.
 

@@ -32,6 +32,7 @@ constraint would have been global and approximate.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,9 +44,13 @@ from prismprice.compute import lightgbm_device_params
 
 __all__ = [
     "CalibrationReport",
+    "DemandModelComparisonReport",
+    "DemandModelScorecard",
     "DemandForecast",
+    "HistGradientBoostingDemandModel",
     "OverfitReport",
     "QuantileDemandModel",
+    "compare_demand_models",
     "rolling_origin_backtest",
 ]
 
@@ -193,6 +198,40 @@ class OverfitReport:
         )
 
 
+@dataclass(frozen=True)
+class DemandModelScorecard:
+    """Pooled and per-fold results for one candidate demand model."""
+
+    model_name: str
+    pooled: CalibrationReport
+    folds: tuple[CalibrationReport, ...]
+    calibrated: bool
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "model_name": self.model_name,
+            "calibrated": self.calibrated,
+            "pooled": self.pooled.__dict__.copy(),
+            "folds": [report.__dict__.copy() for report in self.folds],
+        }
+
+
+@dataclass(frozen=True)
+class DemandModelComparisonReport:
+    """Offline challenger results; a selected candidate is not auto-deployed."""
+
+    candidates: dict[str, DemandModelScorecard]
+    selected_model: str | None
+    selection_rule: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "candidates": {name: score.as_dict() for name, score in self.candidates.items()},
+            "selected_model": self.selected_model,
+            "selection_rule": self.selection_rule,
+        }
+
+
 @dataclass
 class QuantileDemandModel:
     """LightGBM quantile regression producing p10/p50/p90 units.
@@ -270,8 +309,6 @@ class QuantileDemandModel:
         Expects the output of :meth:`~prismprice.features.builder.FeatureBuilder.training_frame`,
         which is the single audited join of features to outcomes.
         """
-        import lightgbm as lgb
-
         if target_column not in frame.columns:
             raise ValueError(f"Training frame has no {target_column!r} column")
         if len(frame) < self.min_child_samples * 2:
@@ -283,13 +320,24 @@ class QuantileDemandModel:
 
         design = self.design(fit_frame)
         self.feature_names = tuple(design.columns)
-        # GPU-only policy: this raises rather than quietly training on CPU,
-        # because LightGBM's own behaviour is to warn and carry on.
-        self.device_params = lightgbm_device_params("estimation.demand")
-
         target = fit_frame[target_column].to_numpy(dtype=float)
+        self.boosters = self._fit_quantile_models(design, target)
 
-        self.boosters = {}
+        self.conformal_lower, self.conformal_upper = self._calibrate_conformal(
+            calibration_frame, target_column
+        )
+        self.overfit_report = self._diagnose_overfit(fit_frame, calibration_frame, target_column)
+        return self
+
+    def _fit_quantile_models(
+        self, design: pd.DataFrame, target: NDArray[np.float64]
+    ) -> dict[float, Any]:
+        """Fit the backend-specific quantile estimators."""
+        import lightgbm as lgb
+
+        # LightGBM reports its selected backend for reproducibility.
+        self.device_params = lightgbm_device_params("estimation.demand")
+        boosters: dict[float, Any] = {}
         for quantile in self.quantiles:
             # No monotone_constraints here: LightGBM rejects them under the
             # quantile objective. Monotonicity in price is imposed downstream by
@@ -306,13 +354,8 @@ class QuantileDemandModel:
                 **self.device_params,
             )
             booster.fit(design, target)
-            self.boosters[quantile] = booster
-
-        self.conformal_lower, self.conformal_upper = self._calibrate_conformal(
-            calibration_frame, target_column
-        )
-        self.overfit_report = self._diagnose_overfit(fit_frame, calibration_frame, target_column)
-        return self
+            boosters[quantile] = booster
+        return boosters
 
     # -- conformalisation --------------------------------------------------
 
@@ -505,6 +548,38 @@ class QuantileDemandModel:
         return projected
 
 
+@dataclass
+class HistGradientBoostingDemandModel(QuantileDemandModel):
+    """CPU challenger using scikit-learn's independent quantile tree learner.
+
+    It shares the feature contract, temporal conformal calibration, quantile
+    ordering, and price monotonicity rules with :class:`QuantileDemandModel`.
+    Use it as a challenger in offline evaluation; winning a backtest does not
+    promote it into the serving path automatically.
+    """
+
+    def _fit_quantile_models(
+        self, design: pd.DataFrame, target: NDArray[np.float64]
+    ) -> dict[float, Any]:
+        from sklearn.ensemble import HistGradientBoostingRegressor
+
+        self.device_params = {}
+        models: dict[float, Any] = {}
+        for quantile in self.quantiles:
+            model = HistGradientBoostingRegressor(
+                loss="quantile",
+                quantile=quantile,
+                learning_rate=self.learning_rate,
+                max_iter=self.n_estimators,
+                max_leaf_nodes=self.num_leaves,
+                min_samples_leaf=self.min_child_samples,
+                random_state=self.seed,
+                early_stopping=False,
+            )
+            models[quantile] = model.fit(design, target)
+        return models
+
+
 # ---------------------------------------------------------------------------
 # Scoring
 # ---------------------------------------------------------------------------
@@ -589,3 +664,99 @@ def rolling_origin_backtest(
 
     pooled = calibration_report(pd.concat(pooled_actual), pd.concat(pooled_predicted))
     return pooled, fold_reports
+
+
+def compare_demand_models(
+    frame: pd.DataFrame,
+    model_factories: Mapping[str, Callable[[], Any]] | None = None,
+    n_folds: int = 4,
+    min_train_fraction: float = 0.5,
+    target_column: str = "target_units",
+    interval_tolerance_pp: float = 3.0,
+    tail_tolerance_pp: float = 5.0,
+) -> DemandModelComparisonReport:
+    """Compare a primary quantile model with independent challengers.
+
+    Every candidate sees the same expanding temporal folds. Selection is based
+    on pooled pinball loss only among candidates whose pooled 80% interval and
+    tail placement pass the configured calibration gates. This is an offline
+    evaluation aid: it does not alter serving or automatically promote a model.
+    """
+    if model_factories is None:
+        model_factories = {
+            "lightgbm": QuantileDemandModel,
+            "sklearn_hist_gradient_boosting": HistGradientBoostingDemandModel,
+        }
+    if not model_factories:
+        raise ValueError("At least one demand model factory is required")
+    if "as_of" not in (frame.index.names or []):
+        raise ValueError("Backtest frame must carry an 'as_of' index level")
+    if target_column not in frame.columns:
+        raise ValueError(f"Backtest frame has no {target_column!r} column")
+
+    ordered = frame.sort_index(level="as_of")
+    dates = ordered.index.get_level_values("as_of").unique().sort_values()
+    if len(dates) < n_folds + 1:
+        raise ValueError(f"Need more than {n_folds} distinct dates to cut {n_folds} folds")
+
+    start = int(len(dates) * min_train_fraction)
+    boundaries = np.linspace(start, len(dates), n_folds + 1).astype(int)
+    pooled_actual: dict[str, list[pd.Series]] = {name: [] for name in model_factories}
+    pooled_predicted: dict[str, list[pd.DataFrame]] = {name: [] for name in model_factories}
+    fold_reports: dict[str, list[CalibrationReport]] = {
+        name: [] for name in model_factories
+    }
+
+    for fold in range(n_folds):
+        train_end = dates[boundaries[fold] - 1]
+        test_end = dates[boundaries[fold + 1] - 1]
+        as_of = ordered.index.get_level_values("as_of")
+        train = ordered[as_of <= train_end]
+        test = ordered[(as_of > train_end) & (as_of <= test_end)]
+        if test.empty or len(train) < 40:
+            continue
+
+        actual = test[target_column]
+        for name, model_factory in model_factories.items():
+            model = model_factory().fit(train, target_column=target_column)
+            predicted = model.predict_quantiles(test)
+            fold_reports[name].append(calibration_report(actual, predicted))
+            pooled_actual[name].append(actual)
+            pooled_predicted[name].append(predicted)
+
+    candidates: dict[str, DemandModelScorecard] = {}
+    for name in model_factories:
+        if not fold_reports[name]:
+            raise ValueError("No fold had enough data to train and score")
+        pooled = calibration_report(
+            pd.concat(pooled_actual[name]), pd.concat(pooled_predicted[name])
+        )
+        calibrated = pooled.interval_calibrated(interval_tolerance_pp) and pooled.tails_calibrated(
+            tail_tolerance_pp
+        )
+        candidates[name] = DemandModelScorecard(
+            model_name=name,
+            pooled=pooled,
+            folds=tuple(fold_reports[name]),
+            calibrated=calibrated,
+        )
+
+    eligible = [score for score in candidates.values() if score.calibrated]
+    selected = min(eligible, key=lambda score: score.pooled.pinball_loss) if eligible else None
+    if selected is None:
+        selection_rule = (
+            "No candidate passed both pooled interval and tail calibration gates; "
+            "review the scorecards before using any model."
+        )
+    else:
+        selection_rule = (
+            "Lowest pooled pinball loss among candidates passing both pooled "
+            "interval and tail calibration gates. Offline candidate only; "
+            "serving is unchanged."
+        )
+
+    return DemandModelComparisonReport(
+        candidates=candidates,
+        selected_model=selected.model_name if selected is not None else None,
+        selection_rule=selection_rule,
+    )
