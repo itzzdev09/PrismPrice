@@ -21,6 +21,11 @@ from prismprice.estimation.demand import (
     compare_demand_models,
     rolling_origin_backtest,
 )
+from prismprice.estimation.bundle import (
+    DemandBundleError,
+    build_demand_bundle,
+    load_demand_bundle,
+)
 from prismprice.estimation.elasticity import (
     DoubleMLElasticity,
     ElasticityEstimate,
@@ -45,6 +50,7 @@ __all__ = [
     "DemandModelComparisonReport",
     "DemandModelScorecard",
     "DemandForecast",
+    "DemandBundleError",
     "DoubleMLElasticity",
     "ElasticityEstimate",
     "ElasticityScore",
@@ -56,10 +62,12 @@ __all__ = [
     "SurvivalFit",
     "add_category_price_control",
     "calibration_report",
+    "build_demand_bundle",
     "compare_demand_models",
     "clv_sensitivity",
     "estimate_reaction",
     "find_equilibrium",
+    "load_demand_bundle",
     "naive_ols_elasticity",
     "price_shock",
     "rolling_origin_backtest",

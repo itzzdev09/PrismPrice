@@ -29,7 +29,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from prismprice.governance.schemas import PriceRequest
-from prismprice.serving.service import DecisionService
+from prismprice.serving.service import DecisionPersistenceError, DecisionService
 
 __all__ = ["BatchRequest", "create_app"]
 
@@ -129,11 +129,22 @@ def create_app(
     @application.get("/health")
     def health() -> dict[str, Any]:
         available = service.model_store_available()
+        context = service.workbench_context()
+        validation = context.get("validation") or {}
         return {
             "healthy": available,
             "model_store_available": available,
             "policy_version": service.engine.policy_version,
+            "model_name": context.get("model_name"),
+            "model_version": context.get("model_version"),
+            "data_through": context.get("data_through"),
+            "validation_calibrated": validation.get("calibrated"),
+            "decision_store_available": service.repository is not None,
         }
+
+    @application.get("/workbench/context")
+    def workbench_context() -> dict[str, Any]:
+        return service.workbench_context()
 
     @application.get("/internal/health", dependencies=[Depends(require_api_key)])
     def internal_health() -> dict[str, Any]:
@@ -141,12 +152,18 @@ def create_app(
 
     @application.post("/decide", dependencies=[Depends(require_api_key)])
     def decide(request: PriceRequest) -> dict[str, Any]:
-        outcome = service.decide(request)
+        try:
+            outcome = service.decide(request)
+        except DecisionPersistenceError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         return _response(outcome)
 
     @application.post("/decide/batch", dependencies=[Depends(require_api_key)])
     def decide_batch(payload: BatchRequest) -> dict[str, Any]:
-        outcomes = service.decide_batch(payload.requests)
+        try:
+            outcomes = service.decide_batch(payload.requests)
+        except DecisionPersistenceError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         return {
             "count": len(outcomes),
             "decisions": [_response(outcome) for outcome in outcomes],

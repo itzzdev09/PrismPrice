@@ -564,6 +564,15 @@ class HistGradientBoostingDemandModel(QuantileDemandModel):
         from sklearn.ensemble import HistGradientBoostingRegressor
 
         self.device_params = {}
+        # HistGradientBoosting's binning expects at least two finite values per
+        # feature. Historical panels commonly contain all-missing competitor
+        # columns or constant inventory fields, so exclude those columns for
+        # this challenger and preserve the narrowed schema for inference.
+        variable = design.nunique(dropna=True) > 1
+        design = design.loc[:, variable]
+        self.feature_names = tuple(design.columns)
+        if design.empty:
+            raise ValueError("The challenger has no non-constant training features")
         models: dict[float, Any] = {}
         for quantile in self.quantiles:
             model = HistGradientBoostingRegressor(
@@ -751,8 +760,8 @@ def compare_demand_models(
     else:
         selection_rule = (
             "Lowest pooled pinball loss among candidates passing both pooled "
-            "interval and tail calibration gates. Offline candidate only; "
-            "serving is unchanged."
+            "interval and tail calibration gates. This comparison returns a "
+            "candidate; an explicit bundle build is required to serve it."
         )
 
     return DemandModelComparisonReport(

@@ -4,9 +4,9 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-lightgrey.svg)](LICENSE)
 
-**Dynamic pricing that optimises for the customer you keep, not just the sale you close.**
+**Retail pricing research, with a connected historical decision workbench.**
 
-PrismPrice is a decision-support system for retail and e-commerce pricing. For every SKU it is designed to forecast demand, estimate price sensitivity, predict the effect of a price on repeat-purchase behaviour, and recommend the price that maximises **long-run contribution profit** — subject to hard guardrails on margin, competitiveness, inventory, fairness and price stability.
+PrismPrice contains research modules for demand, causal price response, retention, portfolio effects, and pricing policy. Its connected local workbench is narrower: it uses a time-validated model of historical active-day sales to compare one SKU's candidate prices under explicit guardrails. The historical prices are observational, so the workbench does not establish the causal effect of changing a price.
 
 > Recommendations are decision support, not auto-published prices. Every recommendation ships with its assumptions, its uncertainty, the constraints that bound it, and a reason code explaining why it landed where it did.
 
@@ -14,13 +14,13 @@ PrismPrice is a decision-support system for retail and e-commerce pricing. For e
 
 ## Overview
 
-PrismPrice is a decision-support system for retail and e-commerce pricing. It combines demand estimates, price sensitivity, customer lifetime value, price optimization, and business guardrails. Recommendations include the inputs, constraints, and reason codes behind each decision; the system does not publish prices automatically.
+The repository combines model research, candidate scoring, guardrails, and decision records. In the local workbench, a verified historical demand bundle feeds point-in-time features and a single-SKU candidate decision; the resulting evidence is stored in DuckDB. Causal elasticity, customer lifetime value, category substitution, retailer feeds, and publishing are not connected to that request path.
 
 The repository includes model evaluation against synthetic data, price optimization with business guardrails, explainable decision records, a FastAPI pricing service, and a browser workbench. Validate models and policy settings against representative business data before using recommendations operationally.
 
 ### Architecture status
 
-The repository contains implemented model and governance components, but it is not yet a production-connected pricing platform. The serving API currently uses injected prediction callables; the local DuckDB data/decision store is not automatically wired into that request path, and retailer source feeds and a production model registry are not included. See the [architecture review and modernization plan](docs/architecture-modernization.md) for the evidence-based baseline, target design, model release gates, and staged integration plan. The existing [component specification](docs/architecture.md) describes the current modules and their intended contracts.
+The local historical request path is connected end to end, but PrismPrice is not a production-connected pricing platform. Retailer source feeds, causal price-response evidence, approval operations, hosted storage, and a production model registry are not included. `InMemoryModelStore` remains a test adapter; the local webapp loads its gated bundle and persists decision records through DuckDB. See the [architecture review and modernization plan](docs/architecture-modernization.md) for current status, target design, and remaining integration work.
 
 ---
 
@@ -95,7 +95,7 @@ pip install -e ".[modelling,serving]"
 
 ## 1. The problem this solves
 
-Pricing fails in two directions, and most systems only guard one of them.
+Pricing can fail in two directions, and most systems only guard one of them.
 
 | Failure | What it looks like | What it costs |
 | --- | --- | --- |
@@ -104,7 +104,7 @@ Pricing fails in two directions, and most systems only guard one of them.
 
 The second cost is the one that gets missed. A price that wins today's basket but costs two future baskets is a **loss**, and a system that scores single transactions cannot see it.
 
-PrismPrice makes that trade-off explicit in the objective function.
+The research objective makes that trade-off explicit. The current local workbench evaluates one SKU using expected contribution and downside risk; it does not model retained customer value or portfolio substitution.
 
 ---
 
@@ -114,7 +114,7 @@ Most pricing engines maximise margin on the current transaction independently:
 
 $$\max_{p} \quad \mathbb{E}[q(p)] \times (p - c)$$
 
-PrismPrice scales this into a **Category Portfolio Optimization** problem. It maximises the transaction plus its effect on the customer relationship, accounts for network cannibalization across substitute SKUs, and penalises downside risk:
+The broader research objective scales this into **Category Portfolio Optimization**: transaction contribution plus customer relationship value and substitute-SKU effects, with a downside penalty:
 
 $$\max_{\mathbf{p} \in \mathcal{P}} \sum_{i=1}^{K} \left( \mathbb{E}[q_i(\mathbf{p})] \cdot (p_i - c_i - \nu_i) + \lambda_i \mathbb{E}[\Delta\text{CLV}_i(p_i)] \right) - \gamma \cdot \text{CVaR}_{\alpha}(\mathbf{p})$$
 
@@ -164,7 +164,9 @@ Where:
 
 Each layer depends only on the one below it and is independently testable. That is what makes the thing buildable step by step and debuggable when a number looks wrong.
 
-### Request path for a single decision
+### Target request path (not every component is connected)
+
+The diagram below is the target component map. The connected local workbench currently runs only the historical, single-SKU path described after the model sections; modules shown for causal response, experimentation, portfolio effects, and publishing are not part of that request.
 
 ```text
   price request (sku, date, context)
@@ -191,28 +193,39 @@ Each layer depends only on the one below it and is independently testable. That 
   recommendation + explanation + confidence
 ```
 
+The current local workbench connects this narrower path:
+
+```text
+POST /decide
+  -> point-in-time features from the historical SKU panel
+  -> verified quantile bundle (P10/P50/P90 at each candidate price)
+  -> single-SKU contribution and downside scoring
+  -> hard guardrails
+  -> durable DuckDB record with model/data/feature evidence
+  -> reviewable result; no automatic price publishing
+```
+
 ---
 
 ## 4. Layer detail
 
 ### L0 — Data foundation
-Ingest transactions, inventory, costs, competitor observations, web exposure and promotions. Every source has a **schema contract** and quality gates (nullability, ranges, referential integrity, freshness). Bad data fails loudly at the boundary rather than silently producing a wrong price.
+The local DuckDB store ingests the historical Online Retail II transactions and builds a daily SKU panel. Live retailer systems, effective-dated costs, inventory, competitor prices, and promotions are not connected.
 
 ### L1 — Features & semantic layer
-Point-in-time-correct feature assembly: trailing demand, price history, reference price, promo depth, seasonality, inventory cover, competitor gap, customer cohort mix.
+The connected workbench assembles SKU history strictly before `as_of`: observed demand, price history, reference price, seasonality, and provenance. Inventory, competitor, customer, embedding, and uncensoring features are not connected to this serving path.
 - **No leakage** — features are computed as of decision time, never using the future.
-- **Demand Un-censoring** — applies Tobit/Kaplan-Meier adjustments to historical sales to estimate true demand during past stockout periods.
-- **Cold Start Embeddings** — uses LLM text/visual embeddings (CLIP/BERT) to map new SKUs to historical priors of nearest-neighbor items.
+- Missing sales days remain unknown because the source does not say whether a product was available.
 
 ### L2 — Estimation
-- **Demand model**: gradient-boosted quantile regression produces p10/p50/p90 demand estimates. Conformal calibration measures interval coverage on held-out data; isotonic projection preserves price monotonicity.
-- **Causal Elasticity model** — Double Machine Learning (DML) / Orthogonal R-Learner that disentangles price from promotional confounders, returning a causal CI and confidence tag.
-- **Retention & CLV model** — Deep Survival model (e.g., Cox Proportional Hazards) with time-varying covariates. Attributes churn risk strictly to the price-vs-reference shock, supplying $\Delta\text{CLV}(p)$.
-- **Competitor model** — estimates competitor reaction functions (Game-Theoretic Response) to prevent destructive algorithmic price wars.
+- **Demand model**: the local bundle contains a fitted quantile model, temporal calibration metrics, data snapshot, artifact digest, and supported SKU list.
+- **Challenger comparison**: the bundle builder compares LightGBM and scikit-learn quantile models on identical expanding time folds and refuses to publish when neither passes interval and tail calibration gates.
+- **Causal elasticity, retention/CLV, and competitor response**: research modules exist, but they are not consumed by the connected workbench.
+- The demand model learns historical associations; observed prices were not randomized, so its curve does not identify the causal effect of changing a price.
 
 #### Demand model second opinion
 
-The default demand-model comparison runs the LightGBM model beside an independent scikit-learn quantile booster on the **same expanding, time-ordered folds**. It reports each candidate's WAPE, pinball loss, interval coverage, tail placement, and per-fold scores. A candidate is named only when its pooled interval and tail calibration pass their gates; the comparison never switches the live pricing model automatically.
+The local bundle builder runs both quantile candidates on the **same expanding, time-ordered folds**. It records each candidate's WAPE, pinball loss, interval coverage, lower-tail coverage, and fold scores, then selects among candidates that pass the calibration gates. This supports the historical workbench; it is not retailer-specific model approval.
 
 ```python
 from prismprice.estimation import compare_demand_models
@@ -223,10 +236,10 @@ comparison = compare_demand_models(training_frame, n_folds=4)
 print(comparison.as_dict())
 ```
 
-Treat `selected_model` as an offline challenger result. Review the fold scorecards and business outcomes before any separate release decision.
+The local bundle builder stores this comparison in the model manifest and makes the selected version visible in the workbench and each decision record.
 
 ### L3 — Decision
-Generate a discrete candidate ladder (snapped to psychological price endings — real retail prices end .95/.99, and threshold effects are real). Monte-Carlo each candidate through the demand distribution. Handle **cross-price effects within category** so a discount on one SKU is not booked as a win when it merely cannibalised its neighbour.
+The connected service scores one SKU's candidate ladder using forecast demand, an operator-supplied unit-cost assumption, expected contribution, and downside risk. It does not model category substitution or portfolio economics; those research modules are offline.
 
 **Sequential markdown.** [`decision/robust_markdown.py`](src/prismprice/decision/robust_markdown.py) supports markdown planning under elasticity uncertainty using value- and regret-based CVaR objectives. See [docs/robust-markdown-evaluation.md](docs/robust-markdown-evaluation.md) for the method and evaluation results.
 
@@ -252,25 +265,22 @@ Three properties make this more than a list of `if` statements:
 - **`NOT_APPLICABLE` is not `PASSED`.** "Checked, fine" and "nothing to check" are separate statuses, because only the first is evidence of compliance. A missing-data pass that reads as a compliance pass is how a regulator-facing audit log becomes fiction.
 - **Fairness is a real predicate.** `PP-G009` inspects the request contract itself: it fails if any field name matches a protected attribute or a known proxy (identity, geography, income, loyalty tier, cohort), and fails if the model stops forbidding unknown fields. It cannot be satisfied by a system that personalises, and it cannot silently pass — there is a test that adds `customer_id` and asserts rejection.
 
-Plus an immutable decision log: inputs, model versions, candidate scores, binding constraints, seed, final price, approver.
+The connected local service writes a durable DuckDB record with request inputs, model and data versions, feature snapshot, candidate forecasts and scores, guardrail results, seed, and selected price. The ledger is local and does not imply that an operator approved or applied the price.
 
 ### L5 — Learning
-Double Machine Learning controls for recorded confounders, but unobserved confounders can still bias elasticity estimates.
-- **Designed experiments** — switchback and store/geo splits by SKU-category.
-- **Safe Contextual Bandits** — exploration with hard lower bounds, ensuring expected rewards never fall below $(1 - \alpha)$ of the baseline policy, explicitly budgeting exploration risk.
-- **Off-policy evaluation** — inverse propensity scoring and doubly-robust estimates, so a candidate policy is scored against logged decisions before it ships.
+Experiment design, contextual bandits, and off-policy evaluation are research modules. They are not connected to the local decision path and do not select prices.
 
 ### L6 — Serving
-FastAPI endpoints serve single and bounded batch decisions; the browser workbench uses the same API. External integrations handle any price publication.
+The local FastAPI app loads the verified historical bundle, assembles point-in-time SKU features, scores a request, applies guardrails, persists its record to DuckDB, and returns it for human review. It has no retailer price publisher.
 
 ### L7 — Observability
-KPIs, dashboards, feature/prediction drift, and alerting. See §6.
+The app reports model readiness and temporal validation evidence. Production drift monitoring, outcome joins, alert routing, and operational SLOs are not connected. See §6 for target KPIs.
 
 ---
 
 ## 5. Reliability
 
-A pricing system that is wrong is worse than one that is down — a bad price is published, transacts, and cannot be recalled. The design reflects that.
+The local workbench does not publish prices. Its outage path holds the supplied current price and records the failure; the demo has no authoritative feed for the last applied retailer price.
 
 ### Degradation Matrix
 
@@ -289,11 +299,9 @@ The rung is derived from the reason code rather than stored alongside it, so the
 
 ### Other guarantees
 
-- **Deterministic** — same inputs + same model versions + same seed $\Rightarrow$ same output, byte for byte. Non-negotiable for auditability.
-- **Shadow $\to$ canary $\to$ rollout** — every policy change runs in shadow against live traffic, then on a small SKU slice, before broad release.
-- **Immutable audit** — every decision reconstructible months later, including the exact model artefacts.
-- **Circuit breakers**: abnormal recommendation distributions can mark a batch as not cleared for publication.
-- **Blast-radius limits** — caps on how many SKUs may change per run and on aggregate basket-level price movement.
+- **Repeatable scoring** — candidate forecasts and scores use a pinned model version and random seed; record timestamps naturally differ.
+- **Durable local audit** — each returned scenario is appended to the DuckDB decision ledger with its model and feature evidence.
+- Shadow rollout, publication circuit breakers, and catalogue blast-radius controls are future deployment work, not guarantees of the local app.
 
 ---
 
@@ -319,7 +327,9 @@ and install the current compatible serving dependencies:
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[serving]"
+.\.venv\Scripts\python.exe -m pip install -e ".[demo]"
+.\.venv\Scripts\python.exe scripts/ingest_uci.py path\to\online_retail_II.xlsx
+.\.venv\Scripts\python.exe scripts/build_demand_bundle.py
 .\.venv\Scripts\python.exe -m prismprice.webapp
 ```
 
@@ -331,16 +341,24 @@ ladder, the selected decision rung, each guardrail result, and a downloadable
 JSON audit record. Interactive requests use `POST /decide`; service status comes
 from `GET /health`.
 
-The local command uses a historical **Online Retail II demo**. It includes a
-dataset explorer with observed sales and model-review insights, and lets a
-visitor select a real product to run through the workbench. The demand curve is
-anchored to its recent product history and saved elasticity estimate; where a
-SKU estimate did not meet the confidence checks, the demo uses the pooled
-estimate. Unit costs use a labelled 45% margin assumption. The dataset ends in
-2011, so these results are a worked example, not current pricing guidance.
-Dataset source, cleaning, assumptions, and the saved run's findings are
-documented in [docs/demo-dataset.md](docs/demo-dataset.md). The source is
-Online Retail II from UCI, also available as a [Kaggle
+The local command uses a historical **Online Retail II workbench**. It compares
+two quantile model candidates on rolling time folds, writes a digest-checked
+bundle only after calibration gates pass, and connects that bundle to
+point-in-time features, the decision engine, hard guardrails, and a durable
+DuckDB decision ledger. The page shows candidate demand intervals, expected
+contribution, downside, model validation, and saved evidence. Unit costs are
+operator-supplied assumptions. Unsupported SKUs or unavailable bundles hold
+the supplied current price and record why; there is no illustrative demand
+curve.
+
+The dataset ends in 2011 and contains positive sales on observed active SKU-days
+only. Missing sales days are not zero-filled, stockout availability is unknown,
+and prices were not randomized. Treat the forecast as a historical research
+scenario, not current demand or a causal estimate of a price change. Causal
+elasticity, CLV, cross-SKU substitution, live retailer data, and price publishing
+are outside this connected path. Dataset source, cleaning, assumptions, and
+model details are documented in [docs/demo-dataset.md](docs/demo-dataset.md).
+The source is Online Retail II from UCI, also available as a [Kaggle
 mirror](https://www.kaggle.com/datasets/lakshmi25npathi/online-retail-dataset);
 the original is CC BY 4.0 and its attribution is shown on the page.
 
@@ -364,8 +382,9 @@ identifiers to 128 characters. Terminate TLS and configure rate limits at the de
 gateway. The browser workbench accepts an API key in its API access section and
 keeps it in the page only until refresh.
 
-`prismprice-web` is also installed as a command by `pip install -e
-".[serving]"` and starts the same localhost demo.
+`prismprice-web` is installed as a command by `pip install -e
+".[demo]"` and starts the same localhost workbench. Build the model bundle first
+with `scripts/build_demand_bundle.py`.
 
 ### Run review dashboard
 
@@ -477,12 +496,12 @@ Policy values include sensitivity brackets so their effect on recommendations ca
 
 ## 8. Operational limitations
 
-- **Real-world validation is still needed.** Evaluation metrics in this repository use synthetic data. Validate demand, elasticity, and CLV models against representative transaction and customer data before relying on their recommendations.
+- **Retailer validation is still needed.** The workbench bundle is evaluated on historical UCI Online Retail II only. Its temporal metrics do not establish current-market accuracy, causal price response, or performance on a retailer's data.
 - **Input data has limits.** The UCI Online Retail dataset does not include unit costs, inventory, or competitor prices. Those inputs must come from the retailer's own systems or documented assumptions.
 - **Data ingestion uses supplied datasets.** The project includes validation and preprocessing, but does not provide automated downloads from source systems.
 - **Storage is local.** The implemented store uses DuckDB. A hosted database adapter and production deployment are not included.
 - **Policy values need local review.** Margin floors, movement caps, competitor ceilings, and objective weights are documented defaults, not business-specific approvals.
-- **CLV is modelled.** Its estimate depends on the discount rate, horizon, and repurchase-hazard calibration; inspect the sensitivity results before using it in decisions.
+- **CLV is not connected to the workbench.** Retention research code exists but does not affect its candidate scores.
 - **Fairness checks are limited.** The protected-data guardrail checks decision inputs; it does not establish equitable outcomes or replace a full fairness review.
 - **Inventory protection depends on its shadow price.** Without a supplied inventory opportunity cost, the guardrail can enforce only the configured absolute floor.
 - **Deployment credentials are shared API keys.** This is suitable for trusted integrations. A browser user can inspect credentials they enter, so use an identity-aware access layer for untrusted or multi-user public access. Terminate TLS and apply rate limits at the gateway.

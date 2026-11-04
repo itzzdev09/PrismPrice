@@ -42,6 +42,7 @@ from prismprice.decision.objective import CandidateOutcome, ObjectiveWeights, sc
 from prismprice.governance.guardrails import GuardrailEngine
 from prismprice.governance.schemas import (
     CandidateScore,
+    DecisionEvidence,
     DecisionEstimates,
     DecisionInputs,
     DecisionRecord,
@@ -146,6 +147,11 @@ class DecisionEngine:
         delta_clv_at: DeltaCLVAt | None = None,
         units_available: float | None = None,
         elasticity: Any = None,
+        model_evidence: DecisionEvidence | None = None,
+        demand_at_prices: Callable[
+            [list[float]], list[tuple[float, float, float]]
+        ]
+        | None = None,
     ) -> DecisionOutcome:
         """Recommend a price for *request*.
 
@@ -186,7 +192,15 @@ class DecisionEngine:
                 clv_cache[price] = delta_clv_at(price) if delta_clv_at else 0.0
             return clv_cache[price]
 
-        demand_predictions = [cached_demand_at(price) for price in ladder]
+        if demand_at_prices is None:
+            demand_predictions = [cached_demand_at(price) for price in ladder]
+        else:
+            demand_predictions = demand_at_prices(ladder)
+            if len(demand_predictions) != len(ladder):
+                raise ValueError(
+                    "demand_at_prices must return one (p10, p50, p90) forecast per candidate"
+                )
+            demand_cache.update(zip(ladder, demand_predictions, strict=True))
         clv_predictions = [cached_delta_clv_at(price) for price in ladder]
         # COMMON RANDOM NUMBERS: one seeded vector is broadcast over every
         # candidate. This preserves paired candidate comparisons and makes
@@ -226,6 +240,7 @@ class DecisionEngine:
             demand_at=cached_demand_at,
             delta_clv_at=cached_delta_clv_at if delta_clv_at else None,
             elasticity=elasticity,
+            model_evidence=model_evidence,
         )
 
         return DecisionOutcome(
@@ -247,22 +262,30 @@ class DecisionEngine:
         demand_at: DemandAt,
         delta_clv_at: DeltaCLVAt | None,
         elasticity: Any,
+        model_evidence: DecisionEvidence | None,
     ) -> DecisionRecord:
         by_price = {e.price: e for e in evaluation.evaluations}
 
-        candidates = [
-            CandidateScore(
-                price=outcome.price,
-                j_score=outcome.j_score,
-                cvar=outcome.cvar,
-                cvar_alpha=outcome.cvar_alpha,
-                feasible=outcome.price in feasible,
-                binding_constraints=list(
-                    by_price[outcome.price].binding_constraints if outcome.price in by_price else []
-                ),
+        candidates: list[CandidateScore] = []
+        for outcome in outcomes:
+            p10, p50, p90 = demand_at(outcome.price)
+            candidates.append(
+                CandidateScore(
+                    price=outcome.price,
+                    j_score=outcome.j_score,
+                    cvar=outcome.cvar,
+                    cvar_alpha=outcome.cvar_alpha,
+                    demand_quantiles=DemandQuantiles(p10=p10, p50=p50, p90=p90),
+                    expected_units=outcome.expected_units,
+                    expected_profit=outcome.expected_profit,
+                    feasible=outcome.price in feasible,
+                    binding_constraints=list(
+                        by_price[outcome.price].binding_constraints
+                        if outcome.price in by_price
+                        else []
+                    ),
+                )
             )
-            for outcome in outcomes
-        ]
 
         chosen_evaluation = by_price.get(recommended)
 
@@ -290,6 +313,7 @@ class DecisionEngine:
             model_versions=dict(self.model_versions),
             inputs=DecisionInputs.from_request(request),
             estimates=estimates,
+            model_evidence=model_evidence,
             candidates=candidates,
             recommended_price=recommended,
             binding_constraints=(

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any, Protocol
 from uuid import uuid4
 
 from prismprice.decision.engine import DecisionEngine, DecisionOutcome
@@ -41,8 +42,19 @@ from prismprice.serving.models import ModelStore, ModelStoreUnavailable
 
 __all__ = [
     "DecisionService",
+    "DecisionPersistenceError",
     "ServiceHealth",
 ]
+
+
+class DecisionRepository(Protocol):
+    """Durable append-only sink for decisions returned by the service."""
+
+    def record_decision(self, record: dict[str, Any]) -> None: ...
+
+
+class DecisionPersistenceError(RuntimeError):
+    """A scored decision could not be durably recorded."""
 
 
 @dataclass(frozen=True)
@@ -79,6 +91,7 @@ class DecisionService:
 
     store: ModelStore
     engine: DecisionEngine = field(default_factory=DecisionEngine)
+    repository: DecisionRepository | None = None
 
     def decide(self, request: PriceRequest) -> DecisionOutcome:
         """Recommend a price, degrading rather than failing.
@@ -89,13 +102,37 @@ class DecisionService:
         something a held price can honestly paper over.
         """
         try:
-            return self.engine.decide(
+            context_for = getattr(self.store, "context_for", None)
+            context = context_for(request) if context_for else None
+            outcome = self.engine.decide(
                 request,
-                demand_at=lambda price: self.store.demand_at(request.sku, price),
-                delta_clv_at=lambda price: self.store.delta_clv_at(request.sku, price),
+                demand_at=(
+                    context.demand_at
+                    if context is not None
+                    else lambda price: self.store.demand_at(request.sku, price)
+                ),
+                delta_clv_at=(
+                    context.delta_clv_at
+                    if context is not None
+                    else lambda price: self.store.delta_clv_at(request.sku, price)
+                ),
+                elasticity=context.elasticity if context is not None else None,
+                model_evidence=context.evidence if context is not None else None,
+                demand_at_prices=(
+                    context.demand_at_prices if context is not None else None
+                ),
             )
-        except ModelStoreUnavailable:
-            return self._maintain_previous(request)
+        except ModelStoreUnavailable as exc:
+            outcome = self._maintain_previous(request, reason=str(exc))
+
+        if self.repository is not None:
+            try:
+                self.repository.record_decision(outcome.record.model_dump(mode="json"))
+            except Exception as exc:
+                raise DecisionPersistenceError(
+                    "The decision was scored but could not be saved to the audit store."
+                ) from exc
+        return outcome
 
     def decide_batch(self, requests: list[PriceRequest]) -> list[DecisionOutcome]:
         """Score many SKUs.
@@ -127,7 +164,38 @@ class DecisionService:
             return False
         return True
 
-    def _maintain_previous(self, request: PriceRequest) -> DecisionOutcome:
+    def workbench_context(self) -> dict[str, Any]:
+        """Describe connected model evidence and explicitly unavailable layers."""
+        provider = getattr(self.store, "workbench_context", None)
+        if provider is not None:
+            context = provider()
+            capabilities = context.setdefault("capabilities", {})
+            capabilities["durable_decisions"] = (
+                "connected" if self.repository is not None else "not_connected"
+            )
+            return context
+        return {
+            "model_store_available": self.model_store_available(),
+            "model_name": None,
+            "model_version": None,
+            "dataset_name": None,
+            "as_of": None,
+            "supported_skus": [],
+            "validation": None,
+            "capabilities": {
+                "demand_forecast": "unavailable",
+                "causal_elasticity": "not_connected",
+                "retention_clv": "not_connected",
+                "portfolio_substitution": "not_connected",
+                "live_costs_inventory_competitors": "request_inputs_only",
+                "durable_decisions": "available" if self.repository else "not_connected",
+                "price_publishing": "not_implemented",
+            },
+        }
+
+    def _maintain_previous(
+        self, request: PriceRequest, reason: str = "The demand model is unavailable."
+    ) -> DecisionOutcome:
         """Rung 5: hold the current price and record why.
 
         No candidates are recorded, because none were scored. Emitting a ladder
@@ -148,6 +216,7 @@ class DecisionService:
             binding_constraints=[],
             guardrail_results=[],
             degradation_reason_code=DegradationRung.CRITICAL_MAINTAIN_PREV,
+            degradation_detail=reason,
             seed=self.engine.seed,
         )
         return DecisionOutcome(record=record, outcomes=(), ladder=(), feasible_prices=())

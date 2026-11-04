@@ -29,7 +29,7 @@ function renderMetrics(data) {
     metricCard("Distinct SKUs", count.format(dataset.skus), "After source cleaning"),
     metricCard("Markets", count.format(dataset.countries), "Customer countries recorded"),
     metricCard("Net sales", money.format(dataset.net_revenue_gbp), "After recorded returns"),
-    metricCard("Modelled products", count.format(dataset.modelable_skus), `${count.format(dataset.model_panel_rows)} observed SKU-days`),
+    metricCard("Active SKU-days", count.format(dataset.model_panel_rows), "Positive sales observations; missing days are not zero-filled"),
   );
 
   document.querySelector("#demo-source-summary").textContent =
@@ -223,24 +223,20 @@ function renderInsights(data) {
     `The average ${monthNames.format(new Date(Date.UTC(2020, seasonalPeak.month - 1, 1)))} is the strongest calendar-month pattern. `
     + `November 2011 was ${signedPercent(pipeline.november_revenue_lift_vs_october_pct)} above October; these comparisons do not isolate pricing effects.`;
 
-  document.querySelector("#demo-elasticity-title").textContent = `A +5% price move maps to ${signedPercent(fivePercentDemandChange)} median demand`;
+  document.querySelector("#demo-elasticity-title").textContent = `Offline scenario: +5% maps to ${signedPercent(fivePercentDemandChange)} median demand`;
   document.querySelector("#demo-elasticity-copy").textContent =
     `P10–P90 elasticity estimates imply a ${signedPercent(demandRange[0])} to ${signedPercent(demandRange[1])} demand range. `
-    + `${count.format(elasticity.high_confidence)} of ${count.format(data.dataset.modelable_skus)} SKU estimates were high confidence; this is a model scenario, not an observed outcome.`;
+    + `${count.format(elasticity.high_confidence)} of ${count.format(data.dataset.modelable_skus)} SKU estimates were high confidence. This is a separate offline scenario, not the demand model used by the workbench.`;
 
   document.querySelector("#demo-guardrail-title").textContent =
     `A ${signedPercent(pipeline.aggregate_movement_pct)} catalogue move was held`;
   document.querySelector("#demo-guardrail-copy").textContent =
     `The aggregate movement limit was ±${pipeline.aggregate_movement_limit_pct.toFixed(0)}%. `
-    + "Although individual prices passed their checks, a portfolio-level guardrail stopped this saved run from being released.";
+    + "This portfolio exercise is from a separate offline run and is not connected to the single-SKU decision path.";
 }
 
 function describeProduct(product) {
-  const base = `${count.format(product.baseline_units)} units per recent active sales day`;
-  const method = product.elasticity_confidence === "high"
-    ? `SKU estimate ${product.elasticity.toFixed(2)}`
-    : `pooled fallback ${product.elasticity.toFixed(2)} (SKU estimate low confidence)`;
-  return `${product.observations} historical SKU-days through ${product.last_seen}; ${base}; ${method}. Cost is assumed at a 45% margin.`;
+  return `${product.observations} historical active sales days through ${product.last_seen}. The displayed price is a historical scenario input; cost is an editable 45% margin assumption. Demand comes from the fitted bundle shown above.`;
 }
 
 function updateWorkbench(product) {
@@ -252,29 +248,38 @@ function updateWorkbench(product) {
   form.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-function renderProductOptions(products) {
+function renderProductOptions(products, context) {
   const select = document.querySelector("#demo-product-select");
   const skuField = document.querySelector('[name="sku"]');
-  const options = products.map((product) => {
+  const supported = new Set(context?.supported_skus || []);
+  const usableProducts = products.filter((product) => supported.has(product.sku));
+  const options = usableProducts.map((product) => {
     const option = new Option(
       `${product.sku} · ${product.description} · ${money.format(product.current_price)}`,
       product.sku,
     );
     return option;
   });
+  if (!options.length) {
+    options.push(new Option(context?.model_store_available
+      ? "No products supported by this fitted bundle" : "Demand bundle unavailable", ""));
+    select.disabled = true;
+  } else {
+    select.disabled = false;
+  }
   select.replaceChildren(...options);
 
-  const bySku = new Map(products.map((product) => [product.sku, product]));
+  const bySku = new Map(usableProducts.map((product) => [product.sku, product]));
   const applySelection = () => {
     const product = bySku.get(select.value);
     if (product) updateWorkbench(product);
   };
   select.addEventListener("change", applySelection);
 
-  const initial = bySku.get(skuField.value) || products[0];
+  const initial = bySku.get(skuField.value) || usableProducts[0];
   if (initial) {
     select.value = initial.sku;
-    document.querySelector("#demo-product-context").textContent = describeProduct(initial);
+    updateWorkbench(initial);
   }
 
   skuField.addEventListener("input", () => {
@@ -285,7 +290,7 @@ function renderProductOptions(products) {
     } else {
       select.value = "";
       document.querySelector("#demo-product-context").textContent =
-        "This SKU is not in the historical catalogue; the service will use its generic illustrative curve.";
+        "This SKU is outside the fitted bundle. The service will hold the current price and record why; it will not draw an illustrative demand curve.";
     }
   });
 
@@ -298,9 +303,122 @@ function renderProductOptions(products) {
   });
 }
 
+const capabilityLabels = {
+  demand_forecast: ["Historical demand forecast", "Uses the fitted temporal quantile model and active sales-day unit."],
+  causal_elasticity: ["Causal price response", "Research code exists; this forecast path does not use a causal estimate."],
+  retention_clv: ["Retention and CLV", "Not connected to this decision or its objective."],
+  portfolio_substitution: ["Portfolio substitution", "Cross-SKU effects are not connected to this decision."],
+  live_costs_inventory_competitors: ["Retailer feeds", "Cost is supplied as a scenario assumption; live stock and competitor feeds are absent."],
+  durable_decisions: ["Decision audit store", "Scored and held decisions are written to the local DuckDB ledger."],
+  price_publishing: ["Price publishing", "No retailer connector or automatic publishing is implemented."],
+};
+
+function renderWorkbenchContext(context) {
+  const validation = context?.validation;
+  const available = Boolean(context?.model_store_available);
+  const modelState = document.querySelector("#hero-model-state");
+  const modelTitle = document.querySelector("#hero-model-title");
+  const modelSubtitle = document.querySelector("#hero-model-subtitle");
+  const heroStats = document.querySelector("#hero-model-stats");
+  const overview = document.querySelector("#runtime-model-overview");
+  const dataStamp = document.querySelector("#runtime-data-stamp");
+  const stats = document.querySelector("#runtime-model-stats");
+  const capabilities = document.querySelector("#capability-status-list");
+  const modelName = context?.model_name || "No model bundle loaded";
+  const modelVersion = context?.model_version || "";
+  const percent = (value) => Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "—";
+
+  modelState.textContent = available
+    ? (validation?.calibrated ? "Bundle loaded · calibration gate passed" : "Bundle loaded · calibration not passed")
+    : "Model unavailable · decisions hold";
+  modelState.dataset.mode = available ? "connected" : "offline";
+  modelTitle.textContent = available ? modelName.replaceAll("_", " ") : "No validated demand bundle";
+  modelSubtitle.textContent = available
+    ? `Time-held-out evaluation on ${count.format(validation?.rows || 0)} rows; forecasts are units per active sales day.`
+    : context?.unavailable_reason || "Build the local bundle with scripts/build_demand_bundle.py after preparing the historical dataset.";
+  heroStats.replaceChildren();
+  [
+    ["WAPE", percent(validation?.wape)],
+    ["80% interval coverage", percent(validation?.coverage_80)],
+    ["Historical cut-off", context?.data_through?.slice(0, 10) || "Not loaded"],
+  ].forEach(([label, value]) => {
+    const item = document.createElement("div");
+    item.className = "hero-model-stat";
+    const key = document.createElement("span"); key.textContent = label;
+    const amount = document.createElement("strong"); amount.textContent = value;
+    item.append(key, amount); heroStats.append(item);
+  });
+
+  overview.textContent = available
+    ? `${modelName} · ${modelVersion} · historical model and decision path`
+    : "Demand model unavailable; decisions are held at the supplied current price";
+  dataStamp.textContent = available
+    ? `${context.dataset_name || "Historical data"} · through ${context.data_through?.slice(0, 10) || "unknown"} · as of ${context.as_of?.slice(0, 10) || "not pinned"}`
+    : "No verified local model bundle";
+  stats.replaceChildren();
+  [
+    metricCard("Validation WAPE", percent(validation?.wape), `${count.format(validation?.rows || 0)} held-out predictions`),
+    metricCard("80% interval coverage", percent(validation?.coverage_80), validation?.calibrated ? "Temporal calibration gate passed" : "No calibrated forecast available"),
+    metricCard("Demand unit", context?.demand_unit || "Unavailable", "Positive units per active sales day"),
+  ].forEach((card) => { card.classList.add("scope-metric-card"); stats.append(card); });
+
+  const challengerArea = document.querySelector("#challenger-comparison");
+  challengerArea.replaceChildren();
+  const comparisonHeading = document.createElement("h4");
+  comparisonHeading.textContent = "Temporal challenger comparison";
+  challengerArea.append(comparisonHeading);
+  const comparisonNote = document.createElement("p");
+  comparisonNote.textContent = available
+    ? `Selected by ${context?.challengers?.selection_rule || "the configured temporal calibration gate"}. Candidates use the same expanding, time-ordered validation folds.`
+    : "The local bundle builder compares LightGBM and scikit-learn quantile models on expanding time folds, then publishes only a candidate that passes calibration gates.";
+  challengerArea.append(comparisonNote);
+  const candidates = context?.challengers?.candidates || {};
+  const selectedModel = context?.challengers?.selected_model;
+  if (available) {
+    const comparisonCards = document.createElement("div");
+    comparisonCards.className = "challenger-cards";
+    Object.entries(candidates).forEach(([name, candidate]) => {
+      const pooled = candidate.pooled || {};
+      const card = document.createElement("article");
+      card.className = `challenger-card${name === selectedModel ? " is-selected" : ""}`;
+      const title = document.createElement("strong"); title.textContent = name.replaceAll("_", " ");
+      const status = document.createElement("span");
+      status.textContent = name === selectedModel ? "Selected bundle" : candidate.calibrated ? "Calibrated challenger" : "Calibration gate failed";
+      const measures = document.createElement("small");
+      measures.textContent = `WAPE ${percent(pooled.wape)} · 80% coverage ${percent(pooled.coverage_80)} · P10 tail ${percent(pooled.coverage_p10)}`;
+      card.append(title, status, measures); comparisonCards.append(card);
+    });
+    challengerArea.append(comparisonCards);
+  }
+
+  capabilities.replaceChildren();
+  Object.entries(capabilityLabels).forEach(([key, [label, detail]]) => {
+    const status = context?.capabilities?.[key] || "unavailable";
+    const item = document.createElement("article");
+    item.className = `capability-status ${status === "connected" ? "is-connected" : "is-unavailable"}`;
+    const title = document.createElement("strong"); title.textContent = label;
+    const state = document.createElement("span");
+    state.textContent = status === "connected" ? "Connected" : status === "unavailable" ? "Unavailable" : status.replaceAll("_", " ");
+    const note = document.createElement("p"); note.textContent = detail;
+    item.append(title, state, note); capabilities.append(item);
+  });
+
+  if (context?.as_of) {
+    document.querySelector("#decision-form").elements.namedItem("as_of").value = context.as_of;
+  }
+  return context || { model_store_available: false, supported_skus: [] };
+}
+
 function renderTopProducts(products) {
   const target = document.querySelector("#demo-top-products");
   target.replaceChildren();
+  if (!products.length) {
+    const empty = document.createElement("p");
+    empty.className = "form-note";
+    empty.textContent = "No products from the public catalogue are supported by the loaded bundle.";
+    target.append(empty);
+    return;
+  }
   products.slice(0, 4).forEach((product, index) => {
     const row = document.createElement("article");
     row.className = "demo-product-row";
@@ -327,6 +445,16 @@ function renderTopProducts(products) {
 }
 
 export function initDemoDataset() {
+  const contextRequest = fetch("/workbench/context")
+    .then((response) => {
+      if (!response.ok) throw new Error("Workbench model context is unavailable.");
+      return response.json();
+    })
+    .then(renderWorkbenchContext)
+    .catch((error) => {
+      renderWorkbenchContext({ model_store_available: false, unavailable_reason: error.message, supported_skus: [] });
+      return { model_store_available: false, supported_skus: [] };
+    });
   fetch("/assets/demo-data.json")
     .then((response) => {
       if (!response.ok) throw new Error("Demo data is unavailable.");
@@ -347,8 +475,11 @@ export function initDemoDataset() {
       renderSeasonalityChart(data.monthly);
       renderElasticityChart(data.elasticity);
       renderInsights(data);
-      renderTopProducts(data.top_products);
-      renderProductOptions(data.products);
+      contextRequest.then((context) => {
+        const supported = new Set(context.supported_skus || []);
+        renderTopProducts(data.top_products.filter((product) => supported.has(product.sku)));
+        renderProductOptions(data.products, context);
+      });
     })
     .catch(() => {
       document.querySelector("#demo-source-summary").textContent =

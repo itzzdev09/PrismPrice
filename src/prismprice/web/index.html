@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/assets/tokens.css">
   <link rel="stylesheet" href="/assets/layout.css">
   <link rel="stylesheet" href="/assets/components.css">
+  <link rel="stylesheet" href="/assets/research-workbench.css">
   <link rel="stylesheet" href="/assets/responsive.css">
   <script type="module" src="/assets/app.js"></script>
 </head>
@@ -38,103 +39,81 @@
   <main id="main-content">
     <section class="hero page-wrap" id="top" aria-labelledby="hero-title">
       <div class="hero-copy" data-reveal="left">
-        <p class="eyebrow"><span class="eyebrow-mark"></span> Retail pricing, made understandable</p>
-        <h1 id="hero-title">Price decisions,<br><span>made clear.</span></h1>
-        <p class="hero-intro">See the demand, margin, and business rules behind every recommendation, then decide what to do with it.</p>
+        <p class="eyebrow"><span class="eyebrow-mark"></span> A model research workbench</p>
+        <h1 id="hero-title">From observed demand<br><span>to a reviewable decision.</span></h1>
+        <p class="hero-intro">Inspect time-validated demand scenarios from historical sales, compare candidate prices under explicit guardrails, and keep the evidence with each historical decision.</p>
         <div class="hero-actions">
           <a class="button button-primary" href="#workbench">Explore the workbench <span aria-hidden="true">↘</span></a>
           <a class="text-link" href="#story">See how it works <span aria-hidden="true">↓</span></a>
         </div>
-        <div class="hero-note"><span class="note-line"></span> Recommendations stay under your control.</div>
+        <div class="hero-note"><span class="note-line"></span> Historical research only · recommendations are never published automatically.</div>
       </div>
       <div class="hero-visual" data-reveal="up">
-          <div class="dashboard-preview" role="img" aria-label="Preview of an example pricing decision for the Regency Cakestand, SKU 22423, using historical Online Retail II data.">
-          <div class="preview-sidebar" aria-hidden="true">
-            <span class="preview-sidebar-brand">P</span>
-            <span class="preview-nav-icon active"><i></i></span><span class="preview-nav-icon"><i></i></span><span class="preview-nav-icon"><i></i></span>
-            <span class="preview-sidebar-spacer"></span><span class="preview-avatar">JD</span>
+        <article class="model-evidence-preview" aria-labelledby="hero-model-title">
+          <div class="model-preview-heading"><span class="eyebrow">CONNECTED MODEL PATH</span><span class="model-preview-state" id="hero-model-state">Checking bundle</span></div>
+          <h2 id="hero-model-title">Historical demand model</h2>
+          <p id="hero-model-subtitle">Loading the fitted bundle and its held-out evaluation.</p>
+          <div class="hero-model-stats" id="hero-model-stats"></div>
+          <div class="hero-model-flow" aria-label="Historical features, quantile forecast, candidate scoring, guardrails, and audit record">
+            <span>Past-only features</span><i aria-hidden="true">→</i><span>P10 · P50 · P90</span><i aria-hidden="true">→</i><span>Profit + downside</span><i aria-hidden="true">→</i><span>Guardrails + record</span>
           </div>
-          <div class="preview-main">
-            <div class="preview-topbar"><span>Pricing workspace</span><span class="preview-workspace">Northstar retail <b>⌄</b></span></div>
-            <div class="preview-content">
-              <div class="preview-page-heading"><div><p>PRODUCT · SKU-22423</p><h2>Regency cakestand</h2></div><span class="preview-updated">Historical · Dec 2011</span></div>
-              <div class="preview-decision-card">
-                <div class="preview-price-block"><span>Recommended price</span><strong>£27.95</strong><span class="preview-change">↑ 12.0% <i>from £24.96</i></span></div>
-                <div class="preview-card-divider"></div>
-                <div class="preview-stat"><span>Expected demand</span><strong>39 <small>units</small></strong><i>per active sales day</i></div>
-                <div class="preview-stat"><span>Gross margin</span><strong>50.9%</strong><i>45% cost assumption</i></div>
-                <div class="preview-status"><span aria-hidden="true">✓</span> SKU checks passed</div>
-              </div>
-              <div class="preview-analysis">
-                <div class="preview-chart-card">
-                  <div class="preview-card-heading"><span>Price and demand</span><span>Next 30 days <b>⌄</b></span></div>
-                  <div class="preview-chart">
-                  <div class="preview-chart-labels"><span>75</span><span>55</span><span>35</span></div>
-                    <svg viewBox="0 0 560 150" preserveAspectRatio="none" aria-hidden="true"><path class="preview-chart-fill" d="M0 35 C65 40 80 52 130 55 S215 66 265 79 S350 84 395 101 S490 111 560 130 V150 H0 Z"/><path class="preview-chart-line" d="M0 35 C65 40 80 52 130 55 S215 66 265 79 S350 84 395 101 S490 111 560 130"/><line class="preview-chart-cursor" x1="395" y1="12" x2="395" y2="142"/><circle class="preview-chart-point" cx="395" cy="101" r="5"/></svg>
-                  </div>
-                  <div class="preview-chart-legend"><span><i></i>Illustrative demand</span><span>Recommended · <b>£27.95</b></span></div>
-                </div>
-                <div class="preview-check-card"><div class="preview-card-heading"><span>Policy checks</span><span class="preview-view-all">View all</span></div><p><i aria-hidden="true">✓</i> Margin floor <b>Passed</b></p><p><i aria-hidden="true">✓</i> Price movement <b>Passed</b></p><p><i aria-hidden="true">✓</i> Promotion rules <b>Passed</b></p></div>
-              </div>
-            </div>
-          </div>
-        </div>
+          <p class="model-preview-caveat">Public data ends in 2011 and records active sales days. Price relationships are observational, not causal effects of changing price. CLV, portfolio substitution, live inventory, and publishing are outside this path.</p>
+        </article>
       </div>
       <div class="hero-capabilities" aria-label="PrismPrice capabilities" data-reveal>
-        <div><span class="capability-index">01</span><strong>Demand estimates</strong><span>Compare candidate prices</span></div>
-        <div><span class="capability-index">02</span><strong>Business guardrails</strong><span>Apply policy before selection</span></div>
-        <div><span class="capability-index">03</span><strong>Decision records</strong><span>Review inputs and reason codes</span></div>
+        <div><span class="capability-index">01</span><strong>Temporal validation</strong><span>Held-out quantile model checks</span></div>
+        <div><span class="capability-index">02</span><strong>Decision economics</strong><span>Expected contribution and downside</span></div>
+        <div><span class="capability-index">03</span><strong>Governed output</strong><span>Hard rules and durable audit record</span></div>
       </div>
       <a class="scroll-cue" href="#story" aria-label="Scroll to see how a pricing decision comes together"><span></span> SCROLL TO EXPLORE</a>
     </section>
 
     <section class="product-story" id="story" aria-labelledby="story-title">
       <div class="story-intro page-wrap" data-reveal>
-        <div><p class="eyebrow">One decision, step by step</p><h2 id="story-title">A recommendation,<br><span>step by step.</span></h2></div>
-        <p>Follow one product through the numbers, the policy checks, and the final decision record.</p>
+        <div><p class="eyebrow">One decision, step by step</p><h2 id="story-title">A historical scenario,<br><span>step by step.</span></h2></div>
+        <p>The connected path uses point-in-time features and an observational quantile model. Labels show where the wider research code remains unconnected.</p>
       </div>
       <div class="story-track" id="story-track">
         <div class="story-stage" id="story-stage" data-active-step="0">
-          <div class="story-art" id="story-art" aria-hidden="true">
-            <canvas class="story-canvas" id="story-canvas" width="1440" height="900"></canvas>
-            <div class="story-static-dashboard">
-              <div class="static-app-bar"><span class="static-app-brand">PrismPrice</span><span>Pricing workspace</span><span class="static-app-status"><i></i> Scenario ready</span></div>
-              <div class="static-dashboard-body">
-                <div class="static-product-line"><div><span>PRODUCT · SKU-22423</span><strong>Regency cakestand</strong></div><span>Historical · Dec 2011</span></div>
-                <div class="static-recommendation"><div><span>RECOMMENDED PRICE</span><strong>£27.95</strong><small><b>↑ 12.0%</b> from £24.96</small></div><div class="static-recommendation-stats"><div><span>Expected demand</span><strong>39 <small>units / active day</small></strong></div><div><span>Gross margin</span><strong>50.9%</strong></div></div><span class="static-policy-pill"><i>✓</i> SKU checks passed</span></div>
-                <div class="static-analytics"><div class="static-chart-card"><div><strong>Demand by candidate price</strong><span>Illustrative curve</span></div><svg viewBox="0 0 600 170" preserveAspectRatio="none" aria-hidden="true"><path class="static-chart-fill" d="M0 24 C70 32 95 41 142 50 S223 67 280 75 S360 83 420 112 S510 125 600 148 V170 H0 Z"/><path class="static-chart-line" d="M0 24 C70 32 95 41 142 50 S223 67 280 75 S360 83 420 112 S510 125 600 148"/><line class="static-chart-cursor" x1="420" y1="8" x2="420" y2="162"/><circle class="static-chart-point" cx="420" cy="112" r="6"/></svg><div class="static-chart-axis"><span>£22.95</span><span>£24.95</span><span>£27.95</span><span>£28.95</span></div></div><div class="static-checklist"><strong>SKU policy checks</strong><p><i>✓</i> Margin floor <b>Passed</b></p><p><i>✓</i> Movement limit <b>Passed</b></p><p><i>✓</i> Promotion rules <b>Passed</b></p></div></div>
-                  <div class="static-bottom-row">
-                  <div class="static-candidates"><div class="static-bottom-heading"><strong>Candidate prices</strong><span>DEMAND <i></i> MARGIN</span></div><p><b>£22.95</b><i><span style="width: 92%"></span></i><small>40%</small></p><p><b>£24.95</b><i><span style="width: 80%"></span></i><small>45%</small></p><p class="selected"><b>£27.95</b><i><span style="width: 68%"></span></i><small>51%</small></p><p><b>£28.95</b><i><span style="width: 51%"></span></i><small>53%</small></p></div>
-                  <div class="static-record"><strong>Decision record</strong><p><span>Model version</span><b>UCI demo v1</b></p><p><span>SKU checks</span><b>Passed</b></p><span class="static-review-note">Portfolio release held</span></div>
-                </div>
-              </div>
+          <div class="story-art" id="story-art">
+            <canvas class="story-canvas" id="story-canvas" width="1440" height="900" aria-hidden="true"></canvas>
+            <div class="story-flow-board">
+              <p class="eyebrow">CONNECTED HISTORICAL DECISION PATH</p>
+              <div class="story-flow-node"><span>01</span><strong>Observed sales history</strong><small>Features strictly before decision time</small></div>
+              <div class="story-flow-link" aria-hidden="true"></div>
+              <div class="story-flow-node"><span>02</span><strong>Quantile demand model</strong><small>P10 · P50 · P90 · time-held-out scores</small></div>
+              <div class="story-flow-link" aria-hidden="true"></div>
+              <div class="story-flow-node"><span>03</span><strong>Candidate economics</strong><small>Expected contribution and downside risk</small></div>
+              <div class="story-flow-link" aria-hidden="true"></div>
+              <div class="story-flow-node"><span>04</span><strong>Guardrails + audit</strong><small>Persisted decision record · no publishing</small></div>
+              <p class="story-flow-note">Causal elasticity, CLV, portfolio substitution, and live retailer feeds are separate modules outside this request path.</p>
             </div>
           </div>
           <div class="story-copy" id="story-copy" aria-live="polite">
             <div class="story-content">
               <article class="story-step" data-story-step="0">
-                <p class="story-kicker"><span>01</span> / READ THE SIGNAL</p>
-                <h3>Start with the whole picture.</h3>
-                <p>Bring demand, today&apos;s price, cost, and competitor context into the same decision.</p>
-                <div class="story-detail"><span>DEMAND</span><span>COST</span><span>COMPETITORS</span></div>
+                <p class="story-kicker"><span>01</span> / READ THE HISTORY</p>
+                <h3>Use only what was known then.</h3>
+                <p>Build SKU features from observed sales strictly before the historical decision date. Missing sales days remain unknown.</p>
+                <div class="story-detail"><span>PAST-ONLY FEATURES</span><span>ACTIVE SALES DAYS</span></div>
               </article>
               <article class="story-step" data-story-step="1" hidden>
                 <p class="story-kicker"><span>02</span> / COMPARE OPTIONS</p>
-                <h3>See the trade-offs clearly.</h3>
-                <p>Compare candidate prices by expected demand, margin, and downside risk before choosing a direction.</p>
-                <div class="story-detail story-detail-bars"><span><i></i>Demand</span><span><i></i>Margin</span><span><i></i>Risk</span></div>
+                <h3>Carry uncertainty into the choice.</h3>
+                <p>Compare P10, P50, and P90 demand at each candidate price, then score expected contribution and downside risk.</p>
+                <div class="story-detail story-detail-bars"><span><i></i>Demand range</span><span><i></i>Contribution</span><span><i></i>Downside</span></div>
               </article>
               <article class="story-step" data-story-step="2" hidden>
                 <p class="story-kicker"><span>03</span> / APPLY POLICY</p>
                 <h3>Keep the guardrails in view.</h3>
-                <p>Check each candidate against your margin floor and price movement limit before it can be recommended.</p>
+                <p>Exclude candidates that breach the supplied cost floor, promotion anchor, movement cap, or other configured rules.</p>
                 <div class="story-detail story-detail-checks"><span><b aria-hidden="true">&#10003;</b> Margin floor</span><span><b aria-hidden="true">&#10003;</b> Price movement</span></div>
               </article>
               <article class="story-step" data-story-step="3" hidden>
                 <p class="story-kicker"><span>04</span> / RECORD THE REASON</p>
-                <h3>Make the outcome explainable.</h3>
-                <p>Review the selected price alongside its model version, inputs, policy checks, and reason codes.</p>
-                <div class="story-detail"><span>MODEL VERSION</span><span>REASON CODES</span></div>
+                <h3>Keep the evidence with the decision.</h3>
+                <p>Store model and data versions, point-in-time features, every candidate, guardrail results, and the selected price.</p>
+                <div class="story-detail"><span>DUCKDB AUDIT</span><span>NO AUTO-PUBLISH</span></div>
               </article>
             </div>
             <div class="story-controls" role="group" aria-label="Choose a story step">
@@ -146,15 +125,15 @@
               <span class="story-scroll-hint">SCROLL TO EXPLORE</span>
             </div>
           </div>
-          <div class="story-caption" aria-hidden="true"><span id="story-caption-stage">01 / 04</span><i></i><span>PRICE DECISION</span></div>
+          <div class="story-caption" aria-hidden="true"><span id="story-caption-stage">01 / 04</span><i></i><span>CONNECTED PATH</span></div>
         </div>
       </div>
     </section>
 
     <section class="demo-data-section page-wrap" id="demo-data" aria-labelledby="demo-data-title">
       <div class="section-heading" data-reveal>
-        <div><p class="eyebrow">A real retail case study</p><h2 id="demo-data-title">One million orders.<br><span>Real pricing questions.</span></h2></div>
-        <p>Explore two years of public transaction history, see what the data can support, then run a product through the same price ladder and guardrails.</p>
+        <div><p class="eyebrow">A historical retail dataset</p><h2 id="demo-data-title">One million transactions.<br><span>One historical pricing case.</span></h2></div>
+        <p>Explore the public transaction history, review its limits, then run a supported SKU through the fitted quantile model and guardrails.</p>
       </div>
       <div class="demo-source-banner" data-reveal>
         <div><span class="demo-source-dot" aria-hidden="true"></span><span id="demo-source-summary">Loading the dataset snapshot…</span></div>
@@ -193,28 +172,34 @@
           <p id="demo-season-copy"></p>
         </article>
         <article class="demo-insight-card">
-          <span class="demo-insight-index">02 / PRICE SENSITIVITY</span>
+          <span class="demo-insight-index">02 / OFFLINE ELASTICITY SCENARIO</span>
           <h3 id="demo-elasticity-title">Checking price signal…</h3>
           <p id="demo-elasticity-copy"></p>
         </article>
         <article class="demo-insight-card demo-insight-guardrail">
-          <span class="demo-insight-index">03 / GOVERNANCE</span>
+          <span class="demo-insight-index">03 / OFFLINE PORTFOLIO EXERCISE</span>
           <h3 id="demo-guardrail-title">Reviewing the catalogue move…</h3>
           <p id="demo-guardrail-copy"></p>
         </article>
       </div>
       <div class="demo-top-products" data-reveal>
-        <div><p class="eyebrow">From the modelled catalogue</p><h3>Products to explore</h3></div>
+        <div><p class="eyebrow">Supported by the loaded bundle</p><h3>Products to explore</h3></div>
         <div class="demo-product-list" id="demo-top-products"></div>
       </div>
-      <p class="demo-caveat" data-reveal><strong>Read this as a historical worked example.</strong> The transaction history ends in 2011. It contains no unit costs, inventory, or competitor prices; the saved run assumes a 45% gross margin and uses pooled elasticity when the SKU-level estimate is not reliable. About 22% of prepared transaction rows have no customer ID, so the browser demo uses no customer-level profiles. The dataset and all derived recommendations are for learning, not current pricing. <a href="https://archive.ics.uci.edu/dataset/502/online+retail+ii" target="_blank" rel="noreferrer">Source and attribution: UCI Online Retail II, CC BY 4.0</a>.</p>
+      <p class="demo-caveat" data-reveal><strong>Historical research example, not a current retail forecast.</strong> The fitted quantile model learns positive sales on observed active SKU-days through December 2011; missing days are not treated as zero demand, and stockout availability is unknown. Historical prices were not randomized, so the estimated relationship does not identify the causal effect of changing price. The source has no unit costs, inventory, competitor history, or customer retention outcomes. The workbench asks you to supply cost for its guardrails. Causal elasticity, CLV, and cross-SKU substitution are not connected to this serving path. Nothing is auto-published. <a href="https://archive.ics.uci.edu/dataset/502/online+retail+ii" target="_blank" rel="noreferrer">Source and attribution: UCI Online Retail II, CC BY 4.0</a>.</p>
     </section>
 
     <section class="workbench-section page-wrap" id="workbench" aria-labelledby="workbench-title">
       <div class="section-heading" data-reveal>
         <div><p class="eyebrow">Pricing workbench</p><h2 id="workbench-title">A clearer way to<br><span>review a price.</span></h2></div>
-        <p>Set the product context. PrismPrice scores a ladder of candidate prices, checks each against your policy, and shows the reasoning behind the result.</p>
+        <p>Choose a SKU supported by the historical model. Its past-only features feed calibrated demand scenarios; the decision engine scores candidate prices and applies hard rules. The score is not a causal estimate of a real price change.</p>
       </div>
+      <section class="workbench-scope" aria-label="Connected and unavailable system layers">
+        <div class="workbench-scope-heading"><div><p class="eyebrow">WHAT THIS BUILD RUNS</p><h3 id="runtime-model-overview">Loading model evidence and connected layers…</h3></div><span id="runtime-data-stamp" class="scope-stamp">Checking local bundle</span></div>
+        <div class="scope-metrics" id="runtime-model-stats"></div>
+        <div class="challenger-comparison" id="challenger-comparison" aria-live="polite"></div>
+        <div class="capability-status-list" id="capability-status-list" aria-live="polite"></div>
+      </section>
       <div class="workbench-shell" data-reveal>
         <div class="workbench-topline">
           <div class="live-tag"><span class="status-dot" aria-hidden="true"></span> Scenario builder</div>
@@ -222,7 +207,7 @@
         </div>
         <div class="workbench-grid">
           <form class="decision-form" id="decision-form">
-            <div class="form-heading"><span class="form-icon" aria-hidden="true">01</span><div><h3>Price context</h3><p>Product details and current conditions.</p></div></div>
+            <div class="form-heading"><span class="form-icon" aria-hidden="true">01</span><div><h3>Historical SKU context</h3><p>One SKU · one historical decision date.</p></div></div>
             <label class="field"><span>Try a real demo product</span><select id="demo-product-select" aria-describedby="demo-product-context"><option value="">Loading product catalogue…</option></select></label>
             <label class="field"><span>Product SKU</span><input name="sku" value="22423" maxlength="128" required autocomplete="off"></label>
             <p class="form-note demo-product-context" id="demo-product-context" aria-live="polite">Products use observed history through December 2011; costs and sensitivity are documented assumptions.</p>

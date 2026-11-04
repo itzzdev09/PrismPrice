@@ -21,10 +21,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from prismprice.governance.schemas import DecisionEvidence, PriceRequest
+
 __all__ = [
+    "DecisionModelContext",
     "InMemoryModelStore",
     "ModelStore",
     "ModelStoreUnavailable",
+    "UnavailableModelStore",
 ]
 
 
@@ -53,6 +57,17 @@ class ModelStore(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class DecisionModelContext:
+    """Request-scoped model inputs prepared from point-in-time features."""
+
+    demand_at: Callable[[float], tuple[float, float, float]]
+    demand_at_prices: Callable[[list[float]], list[tuple[float, float, float]]] | None = None
+    delta_clv_at: Callable[[float], float] | None = None
+    evidence: DecisionEvidence | None = None
+    elasticity: object | None = None
+
+
 @dataclass
 class InMemoryModelStore:
     """A store backed by plain callables.
@@ -68,6 +83,14 @@ class InMemoryModelStore:
     clv: Callable[[str, float], float] | None = None
     versions: dict[str, str] = field(default_factory=dict)
     available: bool = True
+
+    def context_for(self, request: PriceRequest) -> DecisionModelContext:
+        """Adapt the simple callable store to the request-scoped service path."""
+        self._require_available()
+        return DecisionModelContext(
+            demand_at=lambda price: self.demand_at(request.sku, price),
+            delta_clv_at=lambda price: self.delta_clv_at(request.sku, price),
+        )
 
     def demand_at(self, sku: str, price: float) -> tuple[float, float, float]:
         self._require_available()
@@ -88,3 +111,43 @@ class InMemoryModelStore:
     def _require_available(self) -> None:
         if not self.available:
             raise ModelStoreUnavailable("model store is unavailable")
+
+
+@dataclass(frozen=True)
+class UnavailableModelStore:
+    """Explicit offline state when a required, verified bundle cannot load."""
+
+    reason: str
+
+    def demand_at(self, sku: str, price: float) -> tuple[float, float, float]:
+        raise ModelStoreUnavailable(self.reason)
+
+    def delta_clv_at(self, sku: str, price: float) -> float:
+        raise ModelStoreUnavailable(self.reason)
+
+    def model_versions(self) -> dict[str, str]:
+        raise ModelStoreUnavailable(self.reason)
+
+    def workbench_context(self) -> dict[str, object]:
+        return {
+            "model_store_available": False,
+            "unavailable_reason": self.reason,
+            "model_name": None,
+            "model_version": None,
+            "dataset_name": None,
+            "data_through": None,
+            "as_of": None,
+            "demand_unit": None,
+            "supported_skus": [],
+            "validation": None,
+            "assumptions": [],
+            "capabilities": {
+                "demand_forecast": "unavailable",
+                "causal_elasticity": "not_connected",
+                "retention_clv": "not_connected",
+                "portfolio_substitution": "not_connected",
+                "live_costs_inventory_competitors": "not_connected",
+                "durable_decisions": "not_connected",
+                "price_publishing": "not_implemented",
+            },
+        }

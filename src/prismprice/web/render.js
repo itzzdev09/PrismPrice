@@ -13,47 +13,97 @@ const element = (tag, className, text) => {
   return item;
 };
 const rungNames = {
-  OK_OPTIMAL: ["Recommendation ready", ""],
+  OK_OPTIMAL: ["Scenario scored · candidate selected", ""],
   WARN_STALE_COMPETITOR: ["Competitor feed is stale", "warn"],
   FALLBACK_POOLED_ELASTICITY: ["Using pooled elasticity", "warn"],
   FALLBACK_RULE_ENGINE: ["Price held by guardrails", "stop"],
   CRITICAL_MAINTAIN_PREV: ["Model unavailable · price held", "stop"],
 };
 
-function candidateChart(record, target) {
+function candidateEvidenceChart(record, target) {
   const candidates = [...record.candidates].sort((a, b) => a.price - b.price);
+  const ranges = candidates.map((candidate) => candidate.demand_quantiles).filter(Boolean);
+  const low = ranges.length ? Math.min(...ranges.map((range) => range.p10)) : 0;
+  const high = ranges.length ? Math.max(...ranges.map((range) => range.p90)) : 1;
+  const span = Math.max(high - low, 1e-9);
   const heading = element("div", "result-block-heading");
-  heading.append(element("h4", "", "Candidate ladder"));
-  const count = element("span", "", `${candidates.length} prices · bar scaled to J score`);
-  count.title = "Bar length compares objective scores within this candidate ladder.";
-  heading.append(count);
+  heading.append(element("h4", "", "Candidate trade-offs"));
+  heading.append(element("span", "", `${candidates.length} prices · demand interval and contribution`));
   target.append(heading);
+  const columns = element("div", "candidate-table-heading");
+  ["Price", "Demand P10 · P50 · P90", "Contribution / day · J", "Tail CVaR / day", "Rule"].forEach((label) => columns.append(element("span", "", label)));
+  target.append(columns);
   const list = element("div", "candidate-list");
   if (!candidates.length) {
-    list.append(element("p", "result-warning", "No candidates were scored. PrismPrice kept the current price because the decision model was unavailable."));
+    list.append(element("p", "result-warning", record.degradation_detail || "No candidates were scored; the current price was held."));
   }
-  const scores = candidates.map((candidate) => candidate.j_score);
-  const low = Math.min(...scores);
-  const high = Math.max(...scores);
   candidates.forEach((candidate) => {
     const row = element("div", `candidate-row${candidate.price === record.recommended_price ? " selected" : ""}`);
     row.append(element("span", "candidate-price", money(candidate.price)));
-    const track = element("div", "candidate-track");
-    const relativeScore = high === low ? 1 : (candidate.j_score - low) / (high - low);
-    track.setAttribute("role", "img");
-    track.setAttribute("aria-label", `Relative objective score: ${number(relativeScore * 100)} percent within this ladder`);
-    const fill = element("div", "candidate-fill");
-    fill.style.width = `${relativeScore * 100}%`;
-    track.append(fill);
-    row.append(track);
-    const score = element("span", "candidate-score", money(candidate.j_score));
-    score.title = `Objective J score; tail risk (CVaR) ${money(candidate.cvar)}`;
-    score.setAttribute("aria-label", `Objective J score ${money(candidate.j_score)}`);
-    row.append(score);
+    const demand = element("div", "candidate-demand");
+    const quantiles = candidate.demand_quantiles;
+    if (quantiles) {
+      demand.append(element("span", "candidate-demand-label", `P10 ${number(quantiles.p10)} · P50 ${number(quantiles.p50)} · P90 ${number(quantiles.p90)}`));
+      const track = element("div", "candidate-track");
+      const interval = element("span", "candidate-interval");
+      const start = ((quantiles.p10 - low) / span) * 100;
+      const end = ((quantiles.p90 - low) / span) * 100;
+      interval.style.left = `${start}%`;
+      interval.style.width = `${Math.max(end - start, 1)}%`;
+      const median = element("i", "candidate-median");
+      median.style.left = `${((quantiles.p50 - low) / span) * 100}%`;
+      track.setAttribute("role", "img");
+      track.setAttribute("aria-label", `Demand interval ${number(quantiles.p10)} to ${number(quantiles.p90)} active-day units, median ${number(quantiles.p50)}`);
+      track.append(interval, median);
+      demand.append(track);
+    } else {
+      demand.append(element("span", "candidate-demand-label", "Forecast unavailable"));
+    }
+    row.append(demand);
+    const contribution = element("span", "candidate-score");
+    contribution.append(
+      element("strong", "", candidate.expected_profit == null ? "—" : money(candidate.expected_profit)),
+      element("small", "", `J ${money(candidate.j_score)}`),
+    );
+    contribution.title = "Expected contribution under the supplied unit-cost assumption.";
+    row.append(contribution);
+    const risk = element("span", "candidate-risk", money(candidate.cvar));
+    risk.title = `Mean contribution in the worst ${number(candidate.cvar_alpha * 100)}% of simulated outcomes.`;
+    row.append(risk);
     row.append(element("span", `candidate-state${candidate.feasible ? "" : " blocked"}`, candidate.feasible ? "Eligible" : "Blocked"));
     list.append(row);
   });
   target.append(list);
+}
+
+function renderModelEvidence(record, target) {
+  const evidence = record.model_evidence;
+  if (!evidence) {
+    if (record.degradation_detail) target.append(element("p", "result-warning", record.degradation_detail));
+    return;
+  }
+  const section = element("section", "model-evidence");
+  const heading = element("div", "result-block-heading");
+  heading.append(element("h4", "", "Forecast evidence"));
+  heading.append(element("span", "", evidence.validation_calibrated ? "Temporal calibration gate passed" : "Calibration gate not passed"));
+  section.append(heading);
+  const metrics = element("div", "evidence-metrics");
+  [
+    ["Held-out WAPE", `${number(evidence.validation_wape * 100)}%`],
+    ["80% interval coverage", `${number(evidence.validation_coverage_80 * 100)}%`],
+    ["Validation rows", number(evidence.validation_rows, 0)],
+  ].forEach(([label, value]) => {
+    const item = element("div", "evidence-metric");
+    item.append(element("span", "", label), element("strong", "", value));
+    metrics.append(item);
+  });
+  section.append(metrics);
+  section.append(element("p", "evidence-detail",
+    `${evidence.model_name} ${evidence.model_version} · ${evidence.dataset_name} · trained through ${evidence.training_through.slice(0, 10)}. `
+    + `${evidence.observations_used} active sales observations for this SKU; demand is measured in ${evidence.demand_unit}. `
+    + `Held-out P10 tail coverage ${number(evidence.validation_p10_coverage * 100)}%; model digest ${evidence.artifact_sha256?.slice(0, 16) || "not recorded"}; `
+    + `feature snapshot ${evidence.feature_snapshot_id.slice(0, 19)}…`));
+  target.append(section);
 }
 
 function guardrailList(record, target) {
@@ -88,7 +138,7 @@ export function renderDecision(payload, target) {
 
   const main = element("div", "recommendation-block");
   const price = element("div", "");
-  price.append(element("span", "recommendation-label", `Recommended price · ${record.sku}`));
+  price.append(element("span", "recommendation-label", `Selected candidate · ${record.sku}`));
   price.append(element("strong", "recommendation-price", money(record.recommended_price)));
   main.append(price);
   const deltaText = `${change > 0 ? "↑" : change < 0 ? "↓" : "↔"} ${number(Math.abs(change * 100))}%`;
@@ -98,9 +148,10 @@ export function renderDecision(payload, target) {
   const estimates = record.estimates?.demand_quantiles;
   const stats = element("div", "result-stats");
   const statRows = [
-    ["Demand range", estimates ? `${number(estimates.p10)}–${number(estimates.p90)} units` : "Not available"],
-    ["Median demand", estimates ? `${number(estimates.p50)} units` : "Not available"],
-    ["Policy version", record.policy_version || "—"],
+    ["Demand range", estimates ? `${number(estimates.p10)}–${number(estimates.p90)} active-day units` : "Not available"],
+    ["Median demand", estimates ? `${number(estimates.p50)} active-day units` : "Not available"],
+    ["Contribution / active day", record.candidates.find((candidate) => candidate.price === record.recommended_price)?.expected_profit == null
+      ? "Not available" : money(record.candidates.find((candidate) => candidate.price === record.recommended_price).expected_profit)],
   ];
   statRows.forEach(([label, value]) => {
     const stat = element("div", "result-stat");
@@ -109,8 +160,9 @@ export function renderDecision(payload, target) {
   });
   target.append(stats);
 
+  renderModelEvidence(record, target);
   const candidates = element("section", "candidate-ladder");
-  candidateChart(record, candidates);
+  candidateEvidenceChart(record, candidates);
   target.append(candidates);
   const checks = element("section", "guardrail-results");
   guardrailList(record, checks);
@@ -119,7 +171,7 @@ export function renderDecision(payload, target) {
   const audit = element("div", "audit-trail");
   const auditId = element("span", "", `Decision · ${record.decision_id}`);
   auditId.title = record.decision_id;
-  audit.append(auditId, element("span", "", `Seed · ${record.seed}`));
+  audit.append(auditId, element("span", "", `Policy · ${record.policy_version}`), element("span", "", `Seed · ${record.seed}`));
   const exportButton = element("button", "record-export", "Download audit record ↗");
   exportButton.type = "button";
   exportButton.addEventListener("click", () => downloadRecord(record));

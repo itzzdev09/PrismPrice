@@ -1,68 +1,80 @@
-"""Run the PrismPrice browser workbench with a labelled historical data demo.
+"""Run the local workbench with a time-validated historical demand bundle.
 
-Start it with ``python -m prismprice.webapp`` after installing the ``serving``
-extra. The demo uses product baselines and elasticity estimates from the saved
-Online Retail II pipeline run, plus an explicitly illustrative demand spread.
-It is a historical walkthrough rather than a live model; production
-deployments should call ``create_app`` with a :class:`DecisionService` wired to
-their fitted models.
+Create the bundle with ``python scripts/build_demand_bundle.py`` after preparing
+the local Online Retail II DuckDB panel. This remains a historical demonstration
+with explicit source-data limitations, not a current-market pricing service.
 """
 
 from __future__ import annotations
 
-import json
+import logging
+import os
 from pathlib import Path
 from typing import Any
 
 from prismprice.decision import DecisionEngine
-from prismprice.serving import DecisionService, InMemoryModelStore
+from prismprice.serving import DecisionService, UnavailableModelStore
 from prismprice.serving.app import create_app
+from prismprice.serving.repository import LockedPriceStoreDecisionRepository
+
+logger = logging.getLogger(__name__)
 
 _WEB_DIR = Path(__file__).resolve().parent / "web"
-_DEMO_DATA_PATH = _WEB_DIR / "demo-data.json"
-_DEFAULT_DEMAND = {
-    "baseline_units": 48.0,
-    "current_price": 30.0,
-    "elasticity": -1.35,
-    "spread": 0.2,
-}
 
-
-def _sample_demand(
-    sku: str,
-    price: float,
-    catalog: dict[str, dict[str, Any]] | None = None,
-) -> tuple[float, float, float]:
-    """Return a deterministic demo curve anchored to one historical product."""
-    product = catalog.get(sku) if catalog else None
-    baseline = product or _DEFAULT_DEMAND
-    midpoint_price = float(baseline["current_price"])
-    midpoint_units = float(baseline["baseline_units"])
-    elasticity = float(baseline["elasticity"])
-    spread = float(baseline["spread"])
-    median = midpoint_units * (price / midpoint_price) ** elasticity
-    return median * max(1.0 - spread, 0.05), median, median * (1.0 + spread)
+_ROOT = Path(__file__).resolve().parents[2]
 
 
 def create_demo_app() -> Any:
-    """Build the demo app from its compact, precomputed dataset snapshot."""
-    if not _DEMO_DATA_PATH.exists():
-        raise RuntimeError(
-            "The Online Retail II demo snapshot is missing. Run "
-            "python scripts/build_demo_snapshot.py from the repository root."
-        )
-    demo_data = json.loads(_DEMO_DATA_PATH.read_text(encoding="utf-8"))
-    catalog = {product["sku"]: product for product in demo_data["products"]}
-    store = InMemoryModelStore(
-        demand=lambda sku, price: _sample_demand(sku, price, catalog),
-        versions={"demand": "uci-online-retail-ii-demo-curves-v1"},
+    """Build the UI/API around a verified model bundle and local decision ledger."""
+    database_path = Path(os.getenv("PRISMPRICE_DB_PATH", _ROOT / "data" / "prismprice.duckdb"))
+    bundle_path = Path(
+        os.getenv("PRISMPRICE_MODEL_BUNDLE", _ROOT / "artifacts" / "demand-bundle")
     )
+    price_store = None
+    repository = None
+    model_store: Any
+
+    if database_path.is_file():
+        try:
+            from prismprice.storage import PriceStore
+
+            price_store = PriceStore(database_path)
+            repository = LockedPriceStoreDecisionRepository(price_store)
+        except Exception:
+            logger.exception("Could not open the local PrismPrice decision store")
+            price_store = None
+            repository = None
+
+    try:
+        if price_store is None:
+            raise RuntimeError(f"Local panel database not found: {database_path}")
+        from prismprice.serving.demand_store import HistoricalDemandModelStore
+
+        bundle_module = __import__(
+            "prismprice.estimation.bundle", fromlist=["load_demand_bundle"]
+        )
+        model, manifest = bundle_module.load_demand_bundle(bundle_path)
+        # Verify against the same full positive-sales panel that was hashed at
+        # training time. The adapter filters to supported SKUs after verification.
+        panel = price_store.daily_panel()
+        model_store = HistoricalDemandModelStore(model=model, manifest=manifest, panel=panel)
+    except Exception as exc:
+        logger.warning("Historical demand model unavailable: %s", exc)
+        model_store = UnavailableModelStore(
+            f"{exc} Run scripts/build_demand_bundle.py after preparing the local dataset."
+        )
+
     service = DecisionService(
-        store=store,
+        store=model_store,
         engine=DecisionEngine(
-            policy_version="demo-uci-online-retail-ii-1.0",
-            model_versions={"demand": "uci-online-retail-ii-demo-curves-v1"},
+            policy_version="historical-demand-workbench-0.2.0",
+            model_versions=(
+                model_store.model_versions()
+                if not isinstance(model_store, UnavailableModelStore)
+                else {}
+            ),
         ),
+        repository=repository,
     )
     return create_app(
         service,

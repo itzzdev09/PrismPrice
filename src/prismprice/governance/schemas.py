@@ -26,6 +26,7 @@ __all__ = [
     "CandidateEvaluation",
     "CandidateScore",
     "DecisionEstimates",
+    "DecisionEvidence",
     "DecisionInputs",
     "DecisionRecord",
     "DegradationRung",
@@ -294,6 +295,14 @@ class PriceRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class DemandQuantiles(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    p10: float
+    p50: float
+    p90: float
+
+
 class CandidateScore(BaseModel):
     """Objective scores for one candidate price on the ladder."""
 
@@ -309,6 +318,9 @@ class CandidateScore(BaseModel):
         description="Tail probability for the CVaR estimate. Explicit because the "
         "objective parameterises it; do not assume 5%.",
     )
+    demand_quantiles: DemandQuantiles | None = None
+    expected_units: float | None = None
+    expected_profit: float | None = None
     feasible: bool = True
     binding_constraints: list[GuardrailCode] = Field(default_factory=list)
 
@@ -355,14 +367,6 @@ class LadderEvaluation(BaseModel):
 # ---------------------------------------------------------------------------
 # Audit record
 # ---------------------------------------------------------------------------
-
-
-class DemandQuantiles(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    p10: float
-    p50: float
-    p90: float
 
 
 class ElasticityEstimate(BaseModel):
@@ -414,6 +418,33 @@ class DecisionEstimates(BaseModel):
     delta_clv: float | None = None
 
 
+class DecisionEvidence(BaseModel):
+    """Model and point-in-time data facts behind an online recommendation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    model_name: str
+    model_version: str
+    artifact_sha256: str | None = None
+    dataset_name: str
+    dataset_snapshot_id: str
+    feature_snapshot_id: str
+    feature_as_of: datetime
+    training_through: datetime
+    last_observation_at: datetime
+    observations_used: int = Field(..., ge=1)
+    demand_unit: str
+    validation_method: str
+    validation_rows: int = Field(..., ge=1)
+    validation_wape: float = Field(..., ge=0)
+    validation_pinball_loss: float = Field(..., ge=0)
+    validation_coverage_80: float = Field(..., ge=0, le=1)
+    validation_p10_coverage: float = Field(..., ge=0, le=1)
+    validation_calibrated: bool
+    feature_values: dict[str, float | None] = Field(default_factory=dict)
+    model_comparison: dict[str, object] = Field(default_factory=dict)
+
+
 class ExplorationRecord(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -443,11 +474,13 @@ class DecisionRecord(BaseModel):
     model_versions: dict[str, str] = Field(default_factory=dict)
     inputs: DecisionInputs
     estimates: DecisionEstimates = Field(default_factory=DecisionEstimates)
+    model_evidence: DecisionEvidence | None = None
     candidates: list[CandidateScore] = Field(default_factory=list)
     recommended_price: float = Field(..., gt=0)
     binding_constraints: list[GuardrailCode] = Field(default_factory=list)
     guardrail_results: list[GuardrailResult] = Field(default_factory=list)
     degradation_reason_code: DegradationRung
+    degradation_detail: str | None = None
     degradation_rung: int = Field(
         ...,
         ge=1,

@@ -1,64 +1,97 @@
-# Online Retail II demo
+# Historical demand workbench
 
 ## Dataset
 
-The browser walkthrough uses **Online Retail II**, a real transaction history
-for a UK online giftware retailer covering 1 December 2009 through 9 December
-2011. The Kaggle [Online Retail dataset page](https://www.kaggle.com/datasets/lakshmi25npathi/online-retail-dataset)
-provides a public mirror. The original dataset is published by the [UCI Machine
-Learning Repository](https://archive.ics.uci.edu/dataset/502/online+retail+ii)
-under CC BY 4.0. Cite it as: Chen, D. (2012). *Online Retail II*. UCI Machine
-Learning Repository. DOI: [10.24432/C5CG6D](https://doi.org/10.24432/C5CG6D).
+The workbench uses **Online Retail II**, a transaction history for a UK online
+giftware retailer covering 1 December 2009 through 9 December 2011. The public
+source is available from the [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/502/online+retail+ii)
+under CC BY 4.0 and from a [Kaggle mirror](https://www.kaggle.com/datasets/lakshmi25npathi/online-retail-dataset).
+Cite it as Chen, D. (2012), *Online Retail II*, UCI Machine Learning
+Repository, DOI [10.24432/C5CG6D](https://doi.org/10.24432/C5CG6D).
 
-The repository already contains the UCI source and processed DuckDB store, so
-the demo reuses that data rather than checking in another copy of the 43.5 MB
-workbook. The browser receives only `web/demo-data.json`: aggregate trends,
-catalogue summaries and the saved model review. Customer IDs and transaction
-lines are not sent to the browser.
+The repository contains the prepared DuckDB store, so the model bundle can be
+built without downloading another copy of the workbook. The browser receives
+aggregate charts and a small product catalogue; customer IDs and transaction
+lines are not sent to it.
 
-## What visitors can inspect
+## Connected request path
 
-- 1,067,371 source lines; 1,055,553 lines after the existing data quality
-  cleaning; 4,916 distinct SKUs; and 43 customer countries.
-- 528,349 daily SKU observations across the cleaned history, totalling about
-  11.1 million net units and GBP 19.6 million net sales after recorded returns.
-- Monthly sales, several high-revenue modelled products, and the last observed
-  price and recent demand baseline for 443 products with at least 300 history
-  rows in the saved model run.
-- The historical elasticity review: 261 of 443 SKU estimates passed the
-  confidence checks. The other 182 were assigned the pooled median estimate
-  (about -0.48) for the illustrative scenario.
-- A catalogue decision run whose aggregate movement was +9.75%, above its
-  +/-3% limit. Individual candidate decisions could pass their SKU guardrails
-  while the aggregate release check still held the catalogue.
+The local workbench now connects the following components for one historical
+SKU request:
 
-December 2011 in the monthly chart is partial. The saved decision run is dated
-9 December 2011, and its product baselines use the preceding observed history.
+1. `FeatureBuilder` creates features strictly before the requested `as_of`.
+2. The service loads a digest-checked quantile model and verifies its data
+   snapshot and feature schema.
+3. The model predicts P10/P50/P90 demand for every price in the candidate
+   ladder. Demand is measured as positive units per observed active sales day.
+4. The decision engine scores expected contribution and downside risk, then
+   applies hard guardrails.
+5. The service stores the model, data, feature, candidate, and guardrail
+   evidence in the local DuckDB decision ledger before returning the result.
 
-## How the interactive example is built
+The result is a reviewable historical scenario. It is not published to a
+retailer.
 
-Choosing a product fills in its historical list price and a unit cost calculated
-from the run's **assumed 45% gross margin**. At a candidate price, the demo
-scales its recent observed baseline using the saved SKU elasticity where it
-passed confidence checks, otherwise using the pooled estimate. It derives the
-demand range from recent observed variation. This keeps product scale and price
-response tied to the dataset, while clearly treating the response curve as a
-teaching approximation rather than a deployable trained model.
+## Building the model bundle
 
-Cost, inventory and competitor prices are absent from Online Retail II. The
-workbench leaves inventory and competitor inputs blank; cost is labelled as an
-assumption. Unknown SKUs use the generic illustrative curve. The page labels
-the period and model status, and does not present the historical results as
-current pricing guidance.
+Install the focused local-workbench dependencies and build the bundle from the
+repository root. The UCI workbook is not included; download and extract
+`online_retail_II.xlsx` from the [UCI dataset page](https://archive.ics.uci.edu/dataset/502/online+retail+ii),
+then create the local transaction store and model bundle:
+
+```powershell
+py -3.12 -m pip install -e ".[demo]"
+py -3.12 scripts/ingest_uci.py path\to\online_retail_II.xlsx
+py -3.12 scripts/build_demand_bundle.py
+```
+
+The script reads the prepared daily panel from `data/prismprice.duckdb`, builds
+point-in-time training frames for SKUs with at least 300 active sales days, and
+compares LightGBM with scikit-learn's histogram gradient boosting quantile
+model on three expanding temporal folds. It records WAPE, pinball loss, P10
+tail coverage, 80% interval coverage, and per-fold metrics. A candidate must
+pass both 5 percentage point interval and tail calibration gates. If neither
+candidate passes, the script leaves the comparison report for review and does
+not publish a serving bundle.
+
+The output in `artifacts/demand-bundle/` contains a model file and a manifest
+with its SHA-256 digest, source-panel snapshot, supported SKUs, temporal
+validation, and assumptions. `artifacts/` is gitignored. Rebuild after changing
+the source panel. The app refuses to load a bundle if the model digest, feature
+schema, or active source-panel snapshot differs.
+
+## Interpretation and limits
+
+- Source rows are positive sales on active SKU-days. A missing date is not
+  imputed as zero because the source has no item-availability or stockout flag.
+- The model estimates historical demand associations. Prices were not
+  randomized, so the model does not identify the causal effect of changing a
+  price.
+- The forecast unit is **units per active sales day**, not units per calendar
+  day, week, or month.
+- Costs, inventory, competitor prices, customer retention, and category
+  substitution are absent from the source. The form accepts a cost assumption
+  for contribution scoring and guardrails; other unavailable layers are shown
+  explicitly.
+- CLV, causal elasticity, portfolio optimization, experiments, production
+  monitoring, retailer feeds, approval workflows, and price publishing are
+  separate research or future deployment work. They do not feed this request
+  path.
+- An unsupported SKU, date, or unavailable model causes the service to hold the
+  supplied current price and record the reason. There is no generic fallback
+  demand curve.
+
+The dataset page also contains offline historical elasticity and portfolio
+analyses. Those are clearly labeled as separate research scenarios and are not
+the model used by the workbench.
 
 ## Rebuild the browser snapshot
 
-After updating the DuckDB data store or saved pipeline review, run from the
-repository root:
+After updating the DuckDB store or saved historical analysis, run:
 
 ```powershell
 py -3.12 scripts/build_demo_snapshot.py
 ```
 
-The script writes `src/prismprice/web/demo-data.json`. It requires DuckDB and
-the existing files `data/prismprice.duckdb` and `data/runs/real_run.json`.
+The script writes `src/prismprice/web/demo-data.json`. It reads
+`data/prismprice.duckdb` and `data/runs/real_run.json`.

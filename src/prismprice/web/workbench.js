@@ -36,16 +36,15 @@ export function initWorkbench(documentRoot = document, api = createPricingApi())
     try {
       const health = await api.fetchHealth();
       if (sequence !== healthSequence) return health;
-      const demo = health.policy_version.toLowerCase().startsWith("demo");
       const available = health.model_store_available;
       serviceState.className = `service-state${available ? "" : " offline"}`;
       serviceLabel.textContent = available
-        ? (demo ? "Historical dataset demo online" : "Pricing API online")
-        : "Model store unavailable";
-      modelLabel.textContent = !available
-        ? "Model store unavailable · decisions will hold current prices"
-        : demo ? "Online Retail II · historical demo" : `Policy ${health.policy_version} · connected`;
-      modelLabel.dataset.mode = available ? (demo ? "demo" : "live") : "offline";
+        ? "Historical demand model connected"
+        : "Demand model unavailable · price held";
+      modelLabel.textContent = available
+        ? `${health.model_name || "Demand model"} ${health.model_version || ""} · data through ${health.data_through?.slice(0, 10) || "unknown"}`
+        : "No verified bundle · decisions hold current prices";
+      modelLabel.dataset.mode = available ? "live" : "offline";
       retryButton.hidden = available;
       return health;
     } catch {
