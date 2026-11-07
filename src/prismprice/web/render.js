@@ -17,7 +17,7 @@ const rungNames = {
   WARN_STALE_COMPETITOR: ["Competitor feed is stale", "warn"],
   FALLBACK_POOLED_ELASTICITY: ["Using pooled elasticity", "warn"],
   FALLBACK_RULE_ENGINE: ["Price held by guardrails", "stop"],
-  CRITICAL_MAINTAIN_PREV: ["Model unavailable · price held", "stop"],
+  CRITICAL_MAINTAIN_PREV: ["Backup mode: current price held", "stop"],
 };
 
 function candidateEvidenceChart(record, target) {
@@ -26,10 +26,16 @@ function candidateEvidenceChart(record, target) {
   const low = ranges.length ? Math.min(...ranges.map((range) => range.p10)) : 0;
   const high = ranges.length ? Math.max(...ranges.map((range) => range.p90)) : 1;
   const span = Math.max(high - low, 1e-9);
+  const isHold = record.degradation_reason_code === "CRITICAL_MAINTAIN_PREV";
   const heading = element("div", "result-block-heading");
-  heading.append(element("h4", "", "Candidate trade-offs"));
-  heading.append(element("span", "", `${candidates.length} prices · demand interval and contribution`));
+  heading.append(element("h4", "", isHold ? "Backup mode" : "Candidate trade-offs"));
+  heading.append(element("span", "", isHold ? "No candidate prices were scored" : `${candidates.length} prices \u00b7 demand interval and contribution`));
   target.append(heading);
+  if (isHold) {
+    const reason = record.degradation_detail || "The demand model was unavailable.";
+    target.append(element("p", "result-warning", `${reason} The supplied current price was retained; no alternatives were scored.`));
+    return;
+  }
   const columns = element("div", "candidate-table-heading");
   ["Price", "Demand P10 · P50 · P90", "Contribution / day · J", "Tail CVaR / day", "Rule"].forEach((label) => columns.append(element("span", "", label)));
   target.append(columns);
@@ -79,7 +85,9 @@ function candidateEvidenceChart(record, target) {
 function renderModelEvidence(record, target) {
   const evidence = record.model_evidence;
   if (!evidence) {
-    if (record.degradation_detail) target.append(element("p", "result-warning", record.degradation_detail));
+    if (record.degradation_detail && record.degradation_reason_code !== "CRITICAL_MAINTAIN_PREV") {
+      target.append(element("p", "result-warning", record.degradation_detail));
+    }
     return;
   }
   const section = element("section", "model-evidence");
@@ -127,6 +135,7 @@ function guardrailList(record, target) {
 export function renderDecision(payload, target) {
   const record = validatedRecord(payload);
   const code = record.degradation_reason_code;
+  const isHold = code === "CRITICAL_MAINTAIN_PREV";
   const [verdict, tone] = rungNames[code] || [code.replaceAll("_", " "), "warn"];
   const change = (record.recommended_price / record.inputs.current_price) - 1;
   target.replaceChildren();
@@ -138,17 +147,21 @@ export function renderDecision(payload, target) {
 
   const main = element("div", "recommendation-block");
   const price = element("div", "");
-  price.append(element("span", "recommendation-label", `Selected candidate · ${record.sku}`));
+  price.append(element("span", "recommendation-label", `${isHold ? "Current price retained" : "Selected candidate"} \u00b7 ${record.sku}`));
   price.append(element("strong", "recommendation-price", money(record.recommended_price)));
   main.append(price);
-  const deltaText = `${change > 0 ? "↑" : change < 0 ? "↓" : "↔"} ${number(Math.abs(change * 100))}%`;
-  main.append(element("span", `recommendation-delta ${change === 0 ? "flat" : change < 0 ? "down" : ""}`, deltaText));
+  const deltaText = isHold ? "No change" : `${change > 0 ? "\u2191" : change < 0 ? "\u2193" : "\u2194"} ${number(Math.abs(change * 100))}%`;
+  main.append(element("span", `recommendation-delta ${isHold || change === 0 ? "flat" : change < 0 ? "down" : ""}`, deltaText));
   target.append(main);
 
   const estimates = record.estimates?.demand_quantiles;
   const stats = element("div", "result-stats");
-  const statRows = [
-    ["Demand range", estimates ? `${number(estimates.p10)}–${number(estimates.p90)} active-day units` : "Not available"],
+  const statRows = isHold ? [
+    ["Current price", money(record.inputs.current_price)],
+    ["Demand estimate", "Unavailable"],
+    ["Candidates scored", "0"],
+  ] : [
+    ["Demand range", estimates ? `${number(estimates.p10)}\u2013${number(estimates.p90)} active-day units` : "Not available"],
     ["Median demand", estimates ? `${number(estimates.p50)} active-day units` : "Not available"],
     ["Contribution / active day", record.candidates.find((candidate) => candidate.price === record.recommended_price)?.expected_profit == null
       ? "Not available" : money(record.candidates.find((candidate) => candidate.price === record.recommended_price).expected_profit)],
@@ -164,9 +177,11 @@ export function renderDecision(payload, target) {
   const candidates = element("section", "candidate-ladder");
   candidateEvidenceChart(record, candidates);
   target.append(candidates);
-  const checks = element("section", "guardrail-results");
-  guardrailList(record, checks);
-  target.append(checks);
+  if (!isHold || record.guardrail_results?.length) {
+    const checks = element("section", "guardrail-results");
+    guardrailList(record, checks);
+    target.append(checks);
+  }
 
   const audit = element("div", "audit-trail");
   const auditId = element("span", "", `Decision · ${record.decision_id}`);
