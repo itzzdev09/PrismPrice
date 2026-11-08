@@ -17,7 +17,7 @@ const rungNames = {
   WARN_STALE_COMPETITOR: ["Competitor feed is stale", "warn"],
   FALLBACK_POOLED_ELASTICITY: ["Using pooled elasticity", "warn"],
   FALLBACK_RULE_ENGINE: ["Price held by guardrails", "stop"],
-  CRITICAL_MAINTAIN_PREV: ["Backup mode: current price held", "stop"],
+  CRITICAL_MAINTAIN_PREV: ["Safety hold · current price retained", "stop"],
 };
 
 function candidateEvidenceChart(record, target) {
@@ -28,12 +28,16 @@ function candidateEvidenceChart(record, target) {
   const span = Math.max(high - low, 1e-9);
   const isHold = record.degradation_reason_code === "CRITICAL_MAINTAIN_PREV";
   const heading = element("div", "result-block-heading");
-  heading.append(element("h4", "", isHold ? "Backup mode" : "Candidate trade-offs"));
+  heading.append(element("h4", "", isHold ? "Safety hold" : "Candidate trade-offs"));
   heading.append(element("span", "", isHold ? "No candidate prices were scored" : `${candidates.length} prices \u00b7 demand interval and contribution`));
   target.append(heading);
   if (isHold) {
-    const reason = record.degradation_detail || "The demand model was unavailable.";
-    target.append(element("p", "result-warning", `${reason} The supplied current price was retained; no alternatives were scored.`));
+    const reason = record.degradation_detail || "A validated demand forecast was unavailable.";
+    target.append(element(
+      "p",
+      "result-warning",
+      `${reason} PrismPrice retained the current price supplied in this request; no alternatives were scored. Confirm that it matches the live price before acting.`,
+    ));
     return;
   }
   const columns = element("div", "candidate-table-heading");

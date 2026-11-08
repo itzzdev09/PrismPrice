@@ -40,10 +40,10 @@ export function initWorkbench(documentRoot = document, api = createPricingApi())
       serviceState.className = `service-state${available ? "" : " offline"}`;
       serviceLabel.textContent = available
         ? "Historical demand model connected"
-        : "Backup mode: current price held";
+        : "Safety hold: current price retained";
       modelLabel.textContent = available
         ? `${health.model_name || "Demand model"} ${health.model_version || ""} · data through ${health.data_through?.slice(0, 10) || "unknown"}`
-        : "Backup mode: no verified bundle; current prices are held";
+        : "No validated forecast; each request's current price is retained";
       modelLabel.dataset.mode = available ? "live" : "offline";
       retryButton.hidden = available;
       return health;
