@@ -336,6 +336,7 @@ Four properties of this record are enforced by the model, not by convention:
 | --- | --- | --- | --- |
 | **1** | Full system health | Optimal portfolio decision | `OK_OPTIMAL` |
 | **2** | Competitor feed stale | Widen movement bound $\delta$ to limit exposure | `WARN_STALE_COMPETITOR` |
+| **3** | Primary demand prediction fails and a separately calibrated standby is available | Re-score with the standby and record its model evidence | `FALLBACK_BACKUP_MODEL` |
 | **3** | Elasticity CI width $> \tau_{\max}$ | Fall back to category pooled mean elasticity | `FALLBACK_POOLED_ELASTICITY` |
 | **4** | MC optimization non-convergent | Rule-based anchor (Cost-plus + competitor band) | `FALLBACK_RULE_ENGINE` |
 | **5** | Model store 5xx / outage | Return last known good price or $p_{\text{prev}}$ | `CRITICAL_MAINTAIN_PREV` |

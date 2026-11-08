@@ -107,6 +107,7 @@ class DegradationRung(str, Enum):
 
     OK_OPTIMAL = "OK_OPTIMAL"
     WARN_STALE_COMPETITOR = "WARN_STALE_COMPETITOR"
+    FALLBACK_BACKUP_MODEL = "FALLBACK_BACKUP_MODEL"
     FALLBACK_POOLED_ELASTICITY = "FALLBACK_POOLED_ELASTICITY"
     FALLBACK_RULE_ENGINE = "FALLBACK_RULE_ENGINE"
     CRITICAL_MAINTAIN_PREV = "CRITICAL_MAINTAIN_PREV"
@@ -120,6 +121,7 @@ class DegradationRung(str, Enum):
 _RUNG_LEVELS: dict[DegradationRung, int] = {
     DegradationRung.OK_OPTIMAL: 1,
     DegradationRung.WARN_STALE_COMPETITOR: 2,
+    DegradationRung.FALLBACK_BACKUP_MODEL: 3,
     DegradationRung.FALLBACK_POOLED_ELASTICITY: 3,
     DegradationRung.FALLBACK_RULE_ENGINE: 4,
     DegradationRung.CRITICAL_MAINTAIN_PREV: 5,
@@ -425,6 +427,7 @@ class DecisionEvidence(BaseModel):
 
     model_name: str
     model_version: str
+    model_role: str = Field("primary", pattern="^(primary|backup)$")
     artifact_sha256: str | None = None
     dataset_name: str
     dataset_snapshot_id: str

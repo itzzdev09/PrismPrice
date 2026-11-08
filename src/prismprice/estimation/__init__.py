@@ -23,8 +23,10 @@ from prismprice.estimation.demand import (
 )
 from prismprice.estimation.bundle import (
     DemandBundleError,
+    LoadedDemandBundle,
     build_demand_bundle,
     load_demand_bundle,
+    load_demand_bundle_with_backup,
 )
 from prismprice.estimation.elasticity import (
     DoubleMLElasticity,
@@ -51,6 +53,7 @@ __all__ = [
     "DemandModelScorecard",
     "DemandForecast",
     "DemandBundleError",
+    "LoadedDemandBundle",
     "DoubleMLElasticity",
     "ElasticityEstimate",
     "ElasticityScore",
@@ -68,6 +71,7 @@ __all__ = [
     "estimate_reaction",
     "find_equilibrium",
     "load_demand_bundle",
+    "load_demand_bundle_with_backup",
     "naive_ols_elasticity",
     "price_shock",
     "rolling_origin_backtest",

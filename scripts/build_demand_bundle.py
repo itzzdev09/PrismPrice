@@ -49,6 +49,16 @@ def main() -> None:
             {
                 "model_name": manifest["model_name"],
                 "model_version": manifest["model_version"],
+                "backup_model": (
+                    {
+                        "model_name": manifest["backup_model"]["model_name"],
+                        "model_version": manifest["backup_model"]["model_version"],
+                        "calibrated": manifest["backup_model"]["validation"]["calibrated"],
+                    }
+                    if manifest["backup_model"]
+                    else None
+                ),
+                "backup_model_status": manifest["backup_model_status"],
                 "supported_skus": len(manifest["supported_skus"]),
                 "training_rows": manifest["training_rows"],
                 "validation": manifest["validation"],

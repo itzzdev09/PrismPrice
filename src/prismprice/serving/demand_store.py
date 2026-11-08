@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import hashlib
 import json
+from math import isfinite
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
 
-from prismprice.estimation.bundle import DemandBundleError, load_demand_bundle
+from prismprice.estimation.bundle import (
+    DemandBundleError,
+    load_demand_bundle_with_backup,
+)
 from prismprice.features.builder import FeatureBuilder, InsufficientHistoryError
 from prismprice.governance.schemas import DecisionEvidence, PriceRequest
-from prismprice.serving.models import DecisionModelContext, ModelStoreUnavailable
+from prismprice.serving.models import (
+    DecisionModelContext,
+    DecisionModelFallback,
+    ModelPredictionUnavailable,
+    ModelStoreUnavailable,
+)
 
 __all__ = ["HistoricalDemandModelStore"]
 
@@ -25,11 +34,25 @@ class HistoricalDemandModelStore:
     model: Any
     manifest: dict[str, Any]
     panel: pd.DataFrame
+    backup_model: Any | None = None
+    backup_manifest: dict[str, Any] | None = None
+    backup_error: str | None = None
+    fallback_on_load: str | None = None
 
     @classmethod
-    def from_bundle(cls, bundle_dir: str, panel: pd.DataFrame) -> HistoricalDemandModelStore:
-        model, manifest = load_demand_bundle(bundle_dir)
-        return cls(model=model, manifest=manifest, panel=panel)
+    def from_bundle(
+        cls, bundle_dir: str, panel: pd.DataFrame
+    ) -> HistoricalDemandModelStore:
+        loaded = load_demand_bundle_with_backup(bundle_dir)
+        return cls(
+            model=loaded.model,
+            manifest=loaded.active_manifest,
+            panel=panel,
+            backup_model=loaded.backup_model,
+            backup_manifest=loaded.backup_manifest,
+            backup_error=loaded.backup_error,
+            fallback_on_load=loaded.primary_error,
+        )
 
     def __post_init__(self) -> None:
         supported = set(self.manifest["supported_skus"])
@@ -119,52 +142,121 @@ class HistoricalDemandModelStore:
 
     def context_for(self, request: PriceRequest) -> DecisionModelContext:
         features, feature_values, last_observation, observations_used = self._features_for(request)
-        validation = self.manifest["validation"]
-        evidence_without_id = {
+        evidence_features = {
             "sku": request.sku,
             "as_of": request.as_of.isoformat(),
             "features": feature_values,
             "dataset_snapshot_id": self.manifest["dataset_snapshot_id"],
-            "model_version": self.manifest["model_version"],
         }
-        feature_snapshot_id = "sha256:" + hashlib.sha256(
-            json.dumps(evidence_without_id, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
-        evidence = DecisionEvidence(
-            model_name=self.manifest["model_name"],
-            model_version=self.manifest["model_version"],
-            artifact_sha256=self.manifest["artifact_sha256"],
-            dataset_name=self.manifest["dataset_name"],
-            dataset_snapshot_id=self.manifest["dataset_snapshot_id"],
-            feature_snapshot_id=feature_snapshot_id,
-            feature_as_of=request.as_of,
-            training_through=pd.Timestamp(self.manifest["training_through"]).to_pydatetime(),
-            last_observation_at=last_observation,
-            observations_used=observations_used,
-            demand_unit=self.manifest["demand_unit"],
-            validation_method=validation["method"],
-            validation_rows=int(validation["n"]),
-            validation_wape=float(validation["wape"]),
-            validation_pinball_loss=float(validation["pinball_loss"]),
-            validation_coverage_80=float(validation["coverage_80"]),
-            validation_p10_coverage=float(validation["coverage_p10"]),
-            validation_calibrated=bool(validation["calibrated"]),
-            feature_values=feature_values,
-            model_comparison=validation["comparison"],
-        )
+        def make_evidence(
+            manifest: dict[str, Any], model_role: str
+        ) -> DecisionEvidence:
+            validation = manifest["validation"]
+            feature_snapshot_id = "sha256:" + hashlib.sha256(
+                json.dumps(
+                    {**evidence_features, "model_version": manifest["model_version"]},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest()
+            return DecisionEvidence(
+                model_name=manifest["model_name"],
+                model_version=manifest["model_version"],
+                model_role=model_role,
+                artifact_sha256=manifest["artifact_sha256"],
+                dataset_name=manifest["dataset_name"],
+                dataset_snapshot_id=manifest["dataset_snapshot_id"],
+                feature_snapshot_id=feature_snapshot_id,
+                feature_as_of=request.as_of,
+                training_through=pd.Timestamp(manifest["training_through"]).to_pydatetime(),
+                last_observation_at=last_observation,
+                observations_used=observations_used,
+                demand_unit=manifest["demand_unit"],
+                validation_method=validation["method"],
+                validation_rows=int(validation["n"]),
+                validation_wape=float(validation["wape"]),
+                validation_pinball_loss=float(validation["pinball_loss"]),
+                validation_coverage_80=float(validation["coverage_80"]),
+                validation_p10_coverage=float(validation["coverage_p10"]),
+                validation_calibrated=bool(validation["calibrated"]),
+                feature_values=feature_values,
+                model_comparison=validation.get("comparison", {}),
+            )
 
-        def predict(price: float) -> tuple[float, float, float]:
-            forecast = self.model.forecast_at_prices(features, [price])[0]
-            return forecast.p10, forecast.p50, forecast.p90
+        def make_predictors(model: Any, model_name: str):
+            def validate(
+                forecasts: list[Any], prices: list[float]
+            ) -> list[tuple[float, float, float]]:
+                if len(forecasts) != len(prices):
+                    raise ModelPredictionUnavailable(
+                        f"{model_name} returned an incomplete forecast ladder."
+                    )
+                predictions: list[tuple[float, float, float]] = []
+                for forecast in forecasts:
+                    quantiles = (
+                        float(forecast.p10),
+                        float(forecast.p50),
+                        float(forecast.p90),
+                    )
+                    if (
+                        not all(isfinite(value) for value in quantiles)
+                        or quantiles[0] < 0
+                        or not quantiles[0] <= quantiles[1] <= quantiles[2]
+                    ):
+                        raise ModelPredictionUnavailable(
+                            f"{model_name} returned invalid demand quantiles."
+                        )
+                    predictions.append(quantiles)
+                return predictions
 
-        def predict_ladder(prices: list[float]) -> list[tuple[float, float, float]]:
-            forecasts = self.model.forecast_at_prices(features, prices, enforce_monotonicity=True)
-            return [(forecast.p10, forecast.p50, forecast.p90) for forecast in forecasts]
+            def predict(price: float) -> tuple[float, float, float]:
+                try:
+                    return validate(model.forecast_at_prices(features, [price]), [price])[0]
+                except ModelPredictionUnavailable:
+                    raise
+                except Exception as exc:
+                    raise ModelPredictionUnavailable(
+                        f"{model_name} forecast failed ({type(exc).__name__})."
+                    ) from exc
+
+            def predict_ladder(prices: list[float]) -> list[tuple[float, float, float]]:
+                try:
+                    forecasts = model.forecast_at_prices(
+                        features, prices, enforce_monotonicity=True
+                    )
+                    return validate(forecasts, prices)
+                except ModelPredictionUnavailable:
+                    raise
+                except Exception as exc:
+                    raise ModelPredictionUnavailable(
+                        f"{model_name} forecast failed ({type(exc).__name__})."
+                    ) from exc
+
+            return predict, predict_ladder
+
+        active_role = "backup" if self.fallback_on_load else "primary"
+        evidence = make_evidence(self.manifest, active_role)
+        predict, predict_ladder = make_predictors(self.model, self.manifest["model_name"])
+        fallback = None
+        if self.backup_model is not None and self.backup_manifest is not None:
+            backup_evidence = make_evidence(self.backup_manifest, "backup")
+            backup_predict, backup_predict_ladder = make_predictors(
+                self.backup_model, self.backup_manifest["model_name"]
+            )
+            fallback = DecisionModelFallback(
+                demand_at=backup_predict,
+                demand_at_prices=backup_predict_ladder,
+                evidence=backup_evidence,
+                model_versions={"demand": self.backup_manifest["model_version"]},
+            )
 
         return DecisionModelContext(
             demand_at=predict,
             demand_at_prices=predict_ladder,
             evidence=evidence,
+            model_versions={"demand": self.manifest["model_version"]},
+            fallback=fallback,
+            fallback_on_load=self.fallback_on_load,
         )
 
     def workbench_context(self) -> dict[str, Any]:
@@ -173,6 +265,22 @@ class HistoricalDemandModelStore:
             "model_store_available": True,
             "model_name": self.manifest["model_name"],
             "model_version": self.manifest["model_version"],
+            "model_role": "backup" if self.fallback_on_load else "primary",
+            "backup_model_available": self.backup_model is not None,
+            "backup_model_name": (
+                self.backup_manifest.get("model_name") if self.backup_manifest else None
+            ),
+            "backup_model_version": (
+                self.backup_manifest.get("model_version") if self.backup_manifest else None
+            ),
+            "backup_model_status": (
+                "active_after_primary_load_failure" if self.fallback_on_load
+                else "available" if self.backup_model is not None
+                else "unavailable_load_failed" if self.backup_error
+                else self.manifest.get("backup_model_status", "unavailable")
+            ),
+            "backup_model_error": self.backup_error,
+            "primary_model_error": self.fallback_on_load,
             "dataset_name": self.manifest["dataset_name"],
             "dataset_snapshot_id": self.manifest["dataset_snapshot_id"],
             "data_through": self.manifest["training_through"],

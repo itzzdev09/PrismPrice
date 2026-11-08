@@ -8,15 +8,16 @@ reached through a test client tends to grow logic in its route handlers, and
 route handlers are the one place nobody writes unit tests for.
 
 The whole point of this layer is the **degradation matrix**. Rungs 1, 2 and 4
-are decided inside the engine and its guardrails; this module owns rung 5, the
-one that only exists because the service is a running process with dependencies
+are decided inside the engine and its guardrails; this module owns standby-model
+failover and rung 5, which only exists because a running process has dependencies
 that can disappear::
 
     1  OK_OPTIMAL                 full health
     2  WARN_STALE_COMPETITOR      competitor feed is old        (guardrail engine)
     3  FALLBACK_POOLED_ELASTICITY per-SKU elasticity untrusted  (estimation layer)
+    3  FALLBACK_BACKUP_MODEL      primary forecast failed; standby used (here)
     4  FALLBACK_RULE_ENGINE       no feasible candidate         (guardrail engine)
-    5  CRITICAL_MAINTAIN_PREV     model store unreachable       (here)
+    5  CRITICAL_MAINTAIN_PREV     no usable demand model        (here)
 
 Rung 5 returns the **current price**, not a computed one. That is the point: the
 system stops having an opinion and says so, rather than degrading to an opinion
@@ -38,7 +39,12 @@ from prismprice.governance.schemas import (
     DegradationRung,
     PriceRequest,
 )
-from prismprice.serving.models import ModelStore, ModelStoreUnavailable
+from prismprice.serving.models import (
+    DecisionModelContext,
+    ModelPredictionUnavailable,
+    ModelStore,
+    ModelStoreUnavailable,
+)
 
 __all__ = [
     "DecisionService",
@@ -96,32 +102,48 @@ class DecisionService:
     def decide(self, request: PriceRequest) -> DecisionOutcome:
         """Recommend a price, degrading rather than failing.
 
-        Raises nothing for a model-store outage: the outage is expressed as a
-        rung-5 record holding the current price. Any *other* exception is left
-        to propagate, because an unexpected fault should be loud and is not
-        something a held price can honestly paper over.
+        Forecast failures try a separately validated standby. If neither model
+        can produce a valid forecast, or the request has no supported feature
+        context, the service records a rung-5 hold. Unexpected faults propagate.
         """
+        context: DecisionModelContext | None = None
         try:
             context_for = getattr(self.store, "context_for", None)
             context = context_for(request) if context_for else None
-            outcome = self.engine.decide(
-                request,
-                demand_at=(
-                    context.demand_at
-                    if context is not None
-                    else lambda price: self.store.demand_at(request.sku, price)
-                ),
-                delta_clv_at=(
-                    context.delta_clv_at
-                    if context is not None
-                    else lambda price: self.store.delta_clv_at(request.sku, price)
-                ),
-                elasticity=context.elasticity if context is not None else None,
-                model_evidence=context.evidence if context is not None else None,
-                demand_at_prices=(
-                    context.demand_at_prices if context is not None else None
-                ),
-            )
+            outcome = self._run_engine(request, context)
+            if context is not None and context.fallback_on_load:
+                outcome = self._mark_backup_used(
+                    outcome,
+                    "The primary model could not be loaded; the separately validated "
+                    f"backup model was promoted. {context.fallback_on_load}",
+                )
+        except ModelPredictionUnavailable as primary_error:
+            fallback = context.fallback if context is not None else None
+            if fallback is None:
+                outcome = self._maintain_previous(
+                    request,
+                    reason=(
+                        "The primary demand model failed during forecasting and no "
+                        f"validated backup was available: {primary_error}"
+                    ),
+                )
+            else:
+                try:
+                    outcome = self._run_engine(request, context, use_fallback=True)
+                except ModelPredictionUnavailable as backup_error:
+                    outcome = self._maintain_previous(
+                        request,
+                        reason=(
+                            "Both the primary and separately validated backup demand models "
+                            f"failed during forecasting. Primary: {primary_error}. Backup: {backup_error}"
+                        ),
+                    )
+                else:
+                    outcome = self._mark_backup_used(
+                        outcome,
+                        "The primary model failed during forecasting; the separately "
+                        f"validated backup model produced this decision. {primary_error}",
+                    )
         except ModelStoreUnavailable as exc:
             outcome = self._maintain_previous(request, reason=str(exc))
 
@@ -133,6 +155,71 @@ class DecisionService:
                     "The decision was scored but could not be saved to the audit store."
                 ) from exc
         return outcome
+
+    def _run_engine(
+        self,
+        request: PriceRequest,
+        context: DecisionModelContext | None,
+        *,
+        use_fallback: bool = False,
+    ) -> DecisionOutcome:
+        fallback = context.fallback if context is not None and use_fallback else None
+        if use_fallback and fallback is None:
+            raise ValueError("No validated backup model is available for this decision context.")
+        if fallback is not None:
+            demand_at = fallback.demand_at
+            demand_at_prices = fallback.demand_at_prices
+            model_evidence = fallback.evidence
+            model_versions = fallback.model_versions
+        else:
+            demand_at = (
+                context.demand_at
+                if context is not None
+                else lambda price: self.store.demand_at(request.sku, price)
+            )
+            demand_at_prices = context.demand_at_prices if context is not None else None
+            model_evidence = context.evidence if context is not None else None
+            model_versions = None if context is None else context.model_versions or None
+        return self.engine.decide(
+            request,
+            demand_at=demand_at,
+            delta_clv_at=(
+                context.delta_clv_at
+                if context is not None and fallback is None
+                else None
+            ),
+            elasticity=(
+                context.elasticity
+                if context is not None and fallback is None
+                else None
+            ),
+            model_evidence=model_evidence,
+            model_versions=model_versions,
+            demand_at_prices=demand_at_prices,
+        )
+
+    @staticmethod
+    def _mark_backup_used(outcome: DecisionOutcome, detail: str) -> DecisionOutcome:
+        """Record standby use unless a more severe rule-engine hold already applies."""
+        code = outcome.record.degradation_reason_code
+        if code.level < DegradationRung.FALLBACK_RULE_ENGINE.level:
+            code = DegradationRung.FALLBACK_BACKUP_MODEL
+        existing_detail = outcome.record.degradation_detail
+        if existing_detail and existing_detail not in detail:
+            detail = f"{detail} Existing decision degradation: {existing_detail}"
+        record = outcome.record.model_copy(
+            update={
+                "degradation_reason_code": code,
+                "degradation_rung": code.level,
+                "degradation_detail": detail,
+            }
+        )
+        return DecisionOutcome(
+            record=record,
+            outcomes=outcome.outcomes,
+            ladder=outcome.ladder,
+            feasible_prices=outcome.feasible_prices,
+        )
 
     def decide_batch(self, requests: list[PriceRequest]) -> list[DecisionOutcome]:
         """Score many SKUs.

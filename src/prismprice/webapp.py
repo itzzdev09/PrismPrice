@@ -50,14 +50,14 @@ def create_demo_app() -> Any:
             raise RuntimeError(f"Local panel database not found: {database_path}")
         from prismprice.serving.demand_store import HistoricalDemandModelStore
 
-        bundle_module = __import__(
-            "prismprice.estimation.bundle", fromlist=["load_demand_bundle"]
-        )
-        model, manifest = bundle_module.load_demand_bundle(bundle_path)
         # Verify against the same full positive-sales panel that was hashed at
         # training time. The adapter filters to supported SKUs after verification.
         panel = price_store.daily_panel()
-        model_store = HistoricalDemandModelStore(model=model, manifest=manifest, panel=panel)
+        model_store = HistoricalDemandModelStore.from_bundle(str(bundle_path), panel)
+        if model_store.fallback_on_load:
+            logger.warning("Primary demand model unavailable; validated standby promoted: %s", model_store.fallback_on_load)
+        if model_store.backup_error:
+            logger.warning("Standby demand model unavailable; primary remains active: %s", model_store.backup_error)
     except Exception as exc:
         logger.warning("Historical demand model unavailable: %s", exc)
         model_store = UnavailableModelStore(

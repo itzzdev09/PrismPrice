@@ -54,11 +54,22 @@ pass both 5 percentage point interval and tail calibration gates. If neither
 candidate passes, the script leaves the comparison report for review and does
 not publish a serving bundle.
 
-The output in `artifacts/demand-bundle/` contains a model file and a manifest
-with its SHA-256 digest, source-panel snapshot, supported SKUs, temporal
-validation, and assumptions. `artifacts/` is gitignored. Rebuild after changing
-the source panel. The app refuses to load a bundle if the model digest, feature
-schema, or active source-panel snapshot differs.
+Among candidates that pass both gates, the lowest pooled pinball-loss model is
+the primary and the next best is stored as the standby. The standby is a
+separate fitted artifact and is used only if the primary fails while
+forecasting. If only one candidate passes calibration, the bundle records that
+no standby is available and the service retains its current-price hold for a
+primary prediction failure.
+
+The output in `artifacts/demand-bundle/` contains the primary and optional
+standby model files plus a manifest with each artifact's SHA-256 digest,
+source-panel snapshot, supported SKUs, temporal validation, and assumptions.
+At startup, a valid standby is promoted if the primary artifact fails integrity
+or loading checks. If the standby itself is invalid, the primary remains
+available and the problem is exposed in health context. `artifacts/` is
+gitignored. Rebuild after changing the source panel. The app verifies each
+artifact's digest and feature schema and checks both models against the active
+source-panel snapshot.
 
 ## Interpretation and limits
 
@@ -77,8 +88,10 @@ schema, or active source-panel snapshot differs.
   monitoring, retailer feeds, approval workflows, and price publishing are
   separate research or future deployment work. They do not feed this request
   path.
-- An unsupported SKU, date, or unavailable model causes the service to hold the
-  supplied current price and record the reason. There is no generic fallback
+- An unsupported SKU or date causes the service to hold the supplied current
+  price and record the reason. A primary prediction failure uses the standby
+  only when it passed the same temporal calibration gates; if both models fail,
+  the service holds the supplied current price. There is no generic fallback
   demand curve.
 
 The dataset page also contains offline historical elasticity and portfolio

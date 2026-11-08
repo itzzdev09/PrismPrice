@@ -280,7 +280,7 @@ The app reports model readiness and temporal validation evidence. Production dri
 
 ## 5. Reliability
 
-The local workbench does not publish prices. Its outage path holds the supplied current price and records the failure; the demo has no authoritative feed for the last applied retailer price.
+The local workbench does not publish prices. A separately calibrated standby can take over after a primary prediction failure; if no model can produce a valid forecast, the service holds the supplied current price and records why. The demo has no authoritative feed for the last applied retailer price.
 
 ### Degradation Matrix
 
@@ -290,10 +290,11 @@ The API reports these decision states in each audit record:
 | --- | --- | --- | --- |
 | **1** | Inputs and models available; no stale competitor feed | Return the highest-scoring feasible candidate | `OK_OPTIMAL` |
 | **2** | Competitor observation is stale | Continue with an explicit stale-data warning | `WARN_STALE_COMPETITOR` |
+| **3** | Primary demand prediction fails and a separately calibrated standby is available | Re-score with the standby and record its identity and validation evidence | `FALLBACK_BACKUP_MODEL` |
 | **4** | No feasible candidate | Hold the current price and record the fallback | `FALLBACK_RULE_ENGINE` |
 | **5** | Model store is unavailable | Hold the current price and record the outage | `CRITICAL_MAINTAIN_PREV` |
 
-`FALLBACK_POOLED_ELASTICITY` is reserved in the reason-code contract; the serving path currently emits levels 1, 2, 4, and 5.
+The bundle builder promotes a standby only when a distinct challenger passes the same temporal interval and tail-calibration gates as the primary. If no challenger passes, the primary remains usable and the service holds the current price if it later fails.
 
 The rung is derived from the reason code rather than stored alongside it, so the number and the code cannot disagree in an audit record.
 

@@ -55,13 +55,14 @@ The system is returning prices; they are just not optimal ones. This is working 
 | Rung | Meaning | First check |
 | --- | --- | --- |
 | 2 `WARN_STALE_COMPETITOR` | Competitor feed older than 24h | Scraper health; is the source blocking us? |
+| 3 `FALLBACK_BACKUP_MODEL` | Primary forecast failed; calibrated standby produced the decision | Inspect both model versions and primary prediction failure rate; repair or roll back the primary. |
 | 3 `FALLBACK_POOLED_ELASTICITY` | Per-SKU elasticity CI too wide | Is this a new SKU (expected) or did a retrain widen CIs everywhere (not expected)? |
 | 4 `FALLBACK_RULE_ENGINE` | Optimiser did not converge, or no candidate was feasible | See §5 |
-| 5 `CRITICAL_MAINTAIN_PREV` | Model store unreachable | Infrastructure; the pricing system is fine |
+| 5 `CRITICAL_MAINTAIN_PREV` | No usable demand model | Check bundle load, feature eligibility, and both prediction paths; confirm the supplied current price is live. |
 
-**Rung 3 across many SKUs after a retrain is a model regression, not a data problem** — go to §8.
+Repeated `FALLBACK_BACKUP_MODEL` events indicate a primary-model regression or runtime issue; compare both recorded versions and repair the primary. Repeated `FALLBACK_POOLED_ELASTICITY` events after a retrain warrant the model-regression review in §8.
 
-Holding at rung 5 is safe indefinitely: it republishes the previous price. Holding at rung 3 quietly erodes value, because pooled elasticity ignores everything specific about the SKU. Set a clock on rung 3.
+Rung 5 records a hold on the current price supplied in the request. The local workbench does not publish that price. Set a recovery objective for repeated rung 3 events and confirm the live current price before acting on rung 5 records.
 
 ---
 

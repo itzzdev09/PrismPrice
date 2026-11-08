@@ -152,6 +152,7 @@ class DecisionEngine:
             [list[float]], list[tuple[float, float, float]]
         ]
         | None = None,
+        model_versions: dict[str, str] | None = None,
     ) -> DecisionOutcome:
         """Recommend a price for *request*.
 
@@ -164,6 +165,8 @@ class DecisionEngine:
                 is recorded as such rather than treated as missing data.
             units_available: Stock cap for the simulation.
             elasticity: Optional estimate, recorded on the decision.
+            model_versions: Request-selected versions. Defaults to the engine's
+                configured versions when omitted.
 
         Returns:
             :class:`DecisionOutcome`.
@@ -241,6 +244,7 @@ class DecisionEngine:
             delta_clv_at=cached_delta_clv_at if delta_clv_at else None,
             elasticity=elasticity,
             model_evidence=model_evidence,
+            model_versions=model_versions,
         )
 
         return DecisionOutcome(
@@ -263,6 +267,7 @@ class DecisionEngine:
         delta_clv_at: DeltaCLVAt | None,
         elasticity: Any,
         model_evidence: DecisionEvidence | None,
+        model_versions: dict[str, str] | None = None,
     ) -> DecisionRecord:
         by_price = {e.price: e for e in evaluation.evaluations}
 
@@ -310,7 +315,7 @@ class DecisionEngine:
             as_of=request.as_of,
             created_at=datetime.now(timezone.utc),
             policy_version=self.policy_version,
-            model_versions=dict(self.model_versions),
+            model_versions=dict(self.model_versions if model_versions is None else model_versions),
             inputs=DecisionInputs.from_request(request),
             estimates=estimates,
             model_evidence=model_evidence,

@@ -15,6 +15,7 @@ const element = (tag, className, text) => {
 const rungNames = {
   OK_OPTIMAL: ["Scenario scored · candidate selected", ""],
   WARN_STALE_COMPETITOR: ["Competitor feed is stale", "warn"],
+  FALLBACK_BACKUP_MODEL: ["Validated backup model used", "warn"],
   FALLBACK_POOLED_ELASTICITY: ["Using pooled elasticity", "warn"],
   FALLBACK_RULE_ENGINE: ["Price held by guardrails", "stop"],
   CRITICAL_MAINTAIN_PREV: ["Safety hold · current price retained", "stop"],
@@ -97,7 +98,13 @@ function renderModelEvidence(record, target) {
   const section = element("section", "model-evidence");
   const heading = element("div", "result-block-heading");
   heading.append(element("h4", "", "Forecast evidence"));
-  heading.append(element("span", "", evidence.validation_calibrated ? "Temporal calibration gate passed" : "Calibration gate not passed"));
+  heading.append(element(
+    "span",
+    "",
+    evidence.model_role === "backup"
+      ? "Validated backup model used"
+      : evidence.validation_calibrated ? "Temporal calibration gate passed" : "Calibration gate not passed",
+  ));
   section.append(heading);
   const metrics = element("div", "evidence-metrics");
   [
@@ -115,6 +122,9 @@ function renderModelEvidence(record, target) {
     + `${evidence.observations_used} active sales observations for this SKU; demand is measured in ${evidence.demand_unit}. `
     + `Held-out P10 tail coverage ${number(evidence.validation_p10_coverage * 100)}%; model digest ${evidence.artifact_sha256?.slice(0, 16) || "not recorded"}; `
     + `feature snapshot ${evidence.feature_snapshot_id.slice(0, 19)}…`));
+  if (evidence.model_role === "backup" && record.degradation_detail) {
+    section.append(element("p", "result-warning", record.degradation_detail));
+  }
   target.append(section);
 }
 

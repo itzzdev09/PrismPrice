@@ -8,11 +8,11 @@ markup — happens outside the audit trail. Returning the previous price with
 ``CRITICAL_MAINTAIN_PREV`` keeps the failure inside the system, where it is
 recorded and can be alerted on.
 
-So the store is an interface with exactly one interesting property: it is
-allowed to fail, and the failure has a type. Everything downstream branches on
-:class:`ModelStoreUnavailable` rather than on a bare ``Exception``, because
-"the model store is down" and "the demand model returned nonsense" need
-different responses and only the first should hold the price.
+The store distinguishes missing request context from failed forecasts.
+:class:`ModelStoreUnavailable` means neither model has usable inputs, so the
+service holds the supplied current price. :class:`ModelPredictionUnavailable`
+means a forecast failed; the service tries a separately validated standby
+before holding.
 """
 
 from __future__ import annotations
@@ -25,20 +25,26 @@ from prismprice.governance.schemas import DecisionEvidence, PriceRequest
 
 __all__ = [
     "DecisionModelContext",
+    "DecisionModelFallback",
     "InMemoryModelStore",
     "ModelStore",
+    "ModelPredictionUnavailable",
     "ModelStoreUnavailable",
     "UnavailableModelStore",
 ]
 
 
 class ModelStoreUnavailable(RuntimeError):
-    """The model artefacts could not be reached.
+    """Required model artefacts or point-in-time request context are unavailable.
 
-    Deliberately distinct from a modelling error. This one means "we have no
-    opinion right now", which is recoverable by holding the previous price; a
-    bad prediction means "we have a wrong opinion", which is not.
+    Deliberately distinct from a forecast failure. Missing or unsupported
+    features cannot be repaired by another demand model, so the service holds
+    the supplied current price.
     """
+
+
+class ModelPredictionUnavailable(RuntimeError):
+    """A model failed while forecasting, allowing a validated standby to run."""
 
 
 class ModelStore(Protocol):
@@ -58,6 +64,16 @@ class ModelStore(Protocol):
 
 
 @dataclass(frozen=True)
+class DecisionModelFallback:
+    """Forecast functions and provenance for a separately validated standby."""
+
+    demand_at: Callable[[float], tuple[float, float, float]]
+    demand_at_prices: Callable[[list[float]], list[tuple[float, float, float]]]
+    evidence: DecisionEvidence
+    model_versions: dict[str, str]
+
+
+@dataclass(frozen=True)
 class DecisionModelContext:
     """Request-scoped model inputs prepared from point-in-time features."""
 
@@ -66,6 +82,9 @@ class DecisionModelContext:
     delta_clv_at: Callable[[float], float] | None = None
     evidence: DecisionEvidence | None = None
     elasticity: object | None = None
+    model_versions: dict[str, str] = field(default_factory=dict)
+    fallback: DecisionModelFallback | None = None
+    fallback_on_load: str | None = None
 
 
 @dataclass
@@ -90,6 +109,7 @@ class InMemoryModelStore:
         return DecisionModelContext(
             demand_at=lambda price: self.demand_at(request.sku, price),
             delta_clv_at=lambda price: self.delta_clv_at(request.sku, price),
+            model_versions=dict(self.versions),
         )
 
     def demand_at(self, sku: str, price: float) -> tuple[float, float, float]:

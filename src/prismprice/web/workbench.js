@@ -37,12 +37,34 @@ export function initWorkbench(documentRoot = document, api = createPricingApi())
       const health = await api.fetchHealth();
       if (sequence !== healthSequence) return health;
       const available = health.model_store_available;
+      const activeBackup = health.model_role === "backup";
+      const standbyReady = health.backup_model_available;
+      const standbyLoadFailed = health.backup_model_status === "unavailable_load_failed";
       serviceState.className = `service-state${available ? "" : " offline"}`;
-      serviceLabel.textContent = available
-        ? "Historical demand model connected"
-        : "Safety hold: current price retained";
+      serviceLabel.textContent = !available
+        ? "Safety hold: current price retained"
+        : activeBackup
+          ? "Validated backup demand model active"
+          : standbyReady
+            ? "Primary demand model connected · standby ready"
+            : standbyLoadFailed
+              ? "Primary model connected · standby unavailable"
+              : "Historical demand model connected";
+      const standbyDescription = standbyReady
+        ? `Standby ${health.backup_model_name} ${health.backup_model_version}`
+        : activeBackup
+          ? "Primary artifact unavailable"
+          : standbyLoadFailed
+            ? "Standby artifact failed validation"
+            : health.backup_model_status === "unavailable_no_other_candidate_passed_calibration"
+              ? "No calibrated standby"
+              : "";
       modelLabel.textContent = available
-        ? `${health.model_name || "Demand model"} ${health.model_version || ""} · data through ${health.data_through?.slice(0, 10) || "unknown"}`
+        ? [
+          `${health.model_name || "Demand model"} ${health.model_version || ""}`.trim(),
+          standbyDescription,
+          `Data through ${health.data_through?.slice(0, 10) || "unknown"}`,
+        ].filter(Boolean).join(" · ")
         : "No validated forecast; each request's current price is retained";
       modelLabel.dataset.mode = available ? "live" : "offline";
       retryButton.hidden = available;
