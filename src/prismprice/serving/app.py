@@ -129,7 +129,7 @@ def create_app(
     @application.get("/health")
     def health() -> dict[str, Any]:
         available = service.model_store_available()
-        context = service.workbench_context()
+        context = _public_workbench_context(service)
         validation = context.get("validation") or {}
         return {
             "healthy": available,
@@ -142,8 +142,6 @@ def create_app(
             "backup_model_name": context.get("backup_model_name"),
             "backup_model_version": context.get("backup_model_version"),
             "backup_model_status": context.get("backup_model_status", "unavailable"),
-            "backup_model_error": context.get("backup_model_error"),
-            "primary_model_error": context.get("primary_model_error"),
             "data_through": context.get("data_through"),
             "validation_calibrated": validation.get("calibrated"),
             "decision_store_available": service.repository is not None,
@@ -151,7 +149,7 @@ def create_app(
 
     @application.get("/workbench/context")
     def workbench_context() -> dict[str, Any]:
-        return service.workbench_context()
+        return _public_workbench_context(service)
 
     @application.get("/internal/health", dependencies=[Depends(require_api_key)])
     def internal_health() -> dict[str, Any]:
@@ -202,3 +200,21 @@ def _response(outcome: Any) -> dict[str, Any]:
         "seed": record.seed,
         "record": record.model_dump(mode="json"),
     }
+
+
+def _public_workbench_context(service: DecisionService) -> dict[str, Any]:
+    """Return UI diagnostics without exposing raw backend exception text.
+
+    Bundle paths, validation failures, and dependency details belong in server
+    logs. These routes are intentionally readable by the browser workbench,
+    including in the local anonymous demo, so do not forward exception strings.
+    """
+    context = dict(service.workbench_context())
+    context.pop("backup_model_error", None)
+    context.pop("primary_model_error", None)
+    if "unavailable_reason" in context:
+        context["unavailable_reason"] = (
+            "The historical demand model is unavailable. Check the server logs "
+            "or contact an operator."
+        )
+    return context

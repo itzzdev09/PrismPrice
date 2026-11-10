@@ -238,6 +238,29 @@ print(comparison.as_dict())
 
 The local bundle builder stores this comparison in the model manifest and makes the selected version visible in the workbench and each decision record.
 
+#### Overfitting and underfitting
+
+**Overfitting** means a model fits its training history well but predicts later
+periods materially worse. PrismPrice reports the raw model's training-to-held-out
+WAPE gap in `OverfitReport`, and evaluates candidates on expanding, time-ordered
+folds. The held-out interval calibration report is a separate check: conformal
+calibration can make interval coverage honest without improving the median
+forecast's accuracy.
+
+**Underfitting** means the model misses useful structure even on training data.
+A small train-to-holdout gap alone does not show that a model is good: both
+errors may be high. Diagnose it by comparing training and held-out WAPE or
+pinball loss against a simple, domain-appropriate baseline on the same temporal
+folds. If the candidate cannot beat that baseline, investigate model capacity,
+features, and data quality. If all methods perform poorly, the cause may be
+missing information or market noise rather than model capacity.
+
+The current challenger report compares two learned models and gates their
+interval calibration; it does not yet include a naive baseline or label a model
+as underfit automatically. Treat its validation evidence as a release check,
+not an automatic diagnosis. Review per-fold scores as well as pooled results so
+one good time period cannot hide a bad one.
+
 ### L3 — Decision
 The connected service scores one SKU's candidate ladder using forecast demand, an operator-supplied unit-cost assumption, expected contribution, and downside risk. It does not model category substitution or portfolio economics; those research modules are offline.
 
@@ -376,8 +399,10 @@ app = create_app(service, trusted_hosts=["pricing.example.com"])
 ```
 
 `POST /decide` and `POST /decide/batch` require the `X-API-Key` header.
-`GET /health` returns a limited readiness response; detailed diagnostics at
-`GET /internal/health` require the same key. API docs are disabled by default.
+The browser-facing `GET /health` and `/workbench/context` expose model and
+validation metadata, but suppress raw model-loading exceptions. Detailed
+compute diagnostics at `GET /internal/health` require the same key. API docs
+are disabled by default.
 POST request bodies are limited to 256 KiB, batches to 100 items, and SKU
 identifiers to 128 characters. Terminate TLS and configure rate limits at the deployment
 gateway. The browser workbench accepts an API key in its API access section and
