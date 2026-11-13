@@ -296,6 +296,7 @@ class HistoricalDemandModelStore:
                 "coverage_p10": validation["coverage_p10"],
                 "calibrated": validation["calibrated"],
                 "folds": validation["folds"],
+                "overfit": validation.get("overfit"),
             },
             "challengers": validation["comparison"],
             "assumptions": self.manifest["assumptions"],

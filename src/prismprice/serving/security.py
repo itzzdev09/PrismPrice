@@ -97,6 +97,19 @@ class SecurityHeadersMiddleware:
         async def add_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
+                if scope.get("path") in {
+                    "/decide",
+                    "/decide/batch",
+                    "/health",
+                    "/workbench/context",
+                    "/internal/health",
+                }:
+                    headers = [
+                        (name, value)
+                        for name, value in headers
+                        if name.lower() != b"cache-control"
+                    ]
+                    headers.append((b"cache-control", b"no-store"))
                 headers.extend(
                     [
                         (b"x-content-type-options", b"nosniff"),

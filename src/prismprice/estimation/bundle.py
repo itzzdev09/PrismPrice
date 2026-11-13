@@ -213,6 +213,11 @@ def build_demand_bundle(
                     "calibrated": backup_score.calibrated,
                     "folds": [asdict(report) for report in backup_score.folds],
                     "comparison": comparison_payload,
+                    "overfit": (
+                        asdict(backup_model.overfit_report)
+                        if backup_model is not None and backup_model.overfit_report is not None
+                        else None
+                    ),
                 },
             }
         manifest = {
@@ -235,6 +240,11 @@ def build_demand_bundle(
                 "calibrated": primary_score.calibrated,
                 "folds": [asdict(report) for report in primary_score.folds],
                 "comparison": comparison_payload,
+                "overfit": (
+                    asdict(model.overfit_report)
+                    if model.overfit_report is not None
+                    else None
+                ),
                 "release_gate": {
                     "interval_coverage_tolerance_pp": 5.0,
                     "tail_coverage_tolerance_pp": 5.0,

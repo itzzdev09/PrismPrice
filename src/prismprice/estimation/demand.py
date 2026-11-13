@@ -223,13 +223,37 @@ class DemandModelComparisonReport:
     candidates: dict[str, DemandModelScorecard]
     selected_model: str | None
     selection_rule: str
+    baseline: DemandModelScorecard | None = None
 
     def as_dict(self) -> dict[str, Any]:
+        baseline_comparison: dict[str, dict[str, Any]] = {}
+        if self.baseline is not None:
+            baseline_pinball = self.baseline.pooled.pinball_loss
+            baseline_wape = self.baseline.pooled.wape
+            for name, score in self.candidates.items():
+                baseline_comparison[name] = {
+                    "beats_baseline": score.pooled.pinball_loss < baseline_pinball,
+                    "pinball_improvement": _relative_improvement(
+                        baseline_pinball, score.pooled.pinball_loss
+                    ),
+                    "wape_improvement": _relative_improvement(
+                        baseline_wape, score.pooled.wape
+                    ),
+                }
         return {
             "candidates": {name: score.as_dict() for name, score in self.candidates.items()},
             "selected_model": self.selected_model,
             "selection_rule": self.selection_rule,
+            "baseline": self.baseline.as_dict() if self.baseline is not None else None,
+            "baseline_comparison": baseline_comparison,
         }
+
+
+def _relative_improvement(baseline: float, candidate: float) -> float:
+    """Positive values mean the candidate's error is lower than the baseline."""
+    if not np.isfinite(baseline) or baseline <= 0:
+        return 0.0
+    return float((baseline - candidate) / baseline)
 
 
 @dataclass
@@ -621,6 +645,30 @@ def calibration_report(actual: pd.Series, predicted: pd.DataFrame) -> Calibratio
     )
 
 
+def _historical_sku_quantiles(
+    training: pd.DataFrame, scoring: pd.DataFrame, target_column: str
+) -> pd.DataFrame:
+    """Price-blind per-SKU quantile baseline fitted only on the fold's past."""
+    target = training[target_column].astype(float)
+    pooled = target.quantile([0.1, 0.5, 0.9]).to_numpy(dtype=float)
+    per_sku: pd.DataFrame | None = None
+    if "sku" in (training.index.names or []):
+        per_sku = target.groupby(level="sku").quantile([0.1, 0.5, 0.9]).unstack()
+
+    scoring_skus = (
+        scoring.index.get_level_values("sku")
+        if "sku" in (scoring.index.names or [])
+        else [None] * len(scoring)
+    )
+    values = []
+    for sku in scoring_skus:
+        if per_sku is not None and sku in per_sku.index:
+            values.append(per_sku.loc[sku, [0.1, 0.5, 0.9]].to_numpy(dtype=float))
+        else:
+            values.append(pooled)
+    return pd.DataFrame(values, columns=["p10", "p50", "p90"], index=scoring.index)
+
+
 def rolling_origin_backtest(
     frame: pd.DataFrame,
     model_factory: Any = QuantileDemandModel,
@@ -715,6 +763,9 @@ def compare_demand_models(
     fold_reports: dict[str, list[CalibrationReport]] = {
         name: [] for name in model_factories
     }
+    baseline_fold_reports: list[CalibrationReport] = []
+    baseline_actual: list[pd.Series] = []
+    baseline_predicted: list[pd.DataFrame] = []
 
     for fold in range(n_folds):
         train_end = dates[boundaries[fold] - 1]
@@ -726,6 +777,10 @@ def compare_demand_models(
             continue
 
         actual = test[target_column]
+        baseline = _historical_sku_quantiles(train, test, target_column)
+        baseline_fold_reports.append(calibration_report(actual, baseline))
+        baseline_actual.append(actual)
+        baseline_predicted.append(baseline)
         for name, model_factory in model_factories.items():
             model = model_factory().fit(train, target_column=target_column)
             predicted = model.predict_quantiles(test)
@@ -750,6 +805,21 @@ def compare_demand_models(
             calibrated=calibrated,
         )
 
+    if not baseline_fold_reports:
+        raise ValueError("No fold had enough data to score the historical baseline")
+    baseline_pooled = calibration_report(
+        pd.concat(baseline_actual), pd.concat(baseline_predicted)
+    )
+    baseline_calibrated = baseline_pooled.interval_calibrated(
+        interval_tolerance_pp
+    ) and baseline_pooled.tails_calibrated(tail_tolerance_pp)
+    baseline_score = DemandModelScorecard(
+        model_name="per_sku_historical_quantile_baseline",
+        pooled=baseline_pooled,
+        folds=tuple(baseline_fold_reports),
+        calibrated=baseline_calibrated,
+    )
+
     eligible = [score for score in candidates.values() if score.calibrated]
     selected = min(eligible, key=lambda score: score.pooled.pinball_loss) if eligible else None
     if selected is None:
@@ -768,4 +838,5 @@ def compare_demand_models(
         candidates=candidates,
         selected_model=selected.model_name if selected is not None else None,
         selection_rule=selection_rule,
+        baseline=baseline_score,
     )

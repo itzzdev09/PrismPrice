@@ -361,6 +361,16 @@ function renderWorkbenchContext(context) {
     metricCard("80% interval coverage", percent(validation?.coverage_80), validation?.calibrated ? "Temporal calibration gate passed" : "No calibrated forecast available"),
     metricCard("Demand unit", context?.demand_unit || "Unavailable", "Positive units per active sales day"),
   ].forEach((card) => { card.classList.add("scope-metric-card"); stats.append(card); });
+  const overfit = validation?.overfit;
+  if (Number.isFinite(Number(overfit?.wape_gap_ratio))) {
+    const gapCard = metricCard(
+      "Raw model train-to-held-out WAPE gap",
+      percent(overfit.wape_gap_ratio),
+      `Fit WAPE ${percent(overfit.fit_wape)}; held-out WAPE ${percent(overfit.calibration_wape)}. Interval calibration does not reduce this accuracy gap.`,
+    );
+    gapCard.classList.add("scope-metric-card");
+    stats.append(gapCard);
+  }
 
   const challengerArea = document.querySelector("#challenger-comparison");
   challengerArea.replaceChildren();
@@ -374,7 +384,19 @@ function renderWorkbenchContext(context) {
   challengerArea.append(comparisonNote);
   const candidates = context?.challengers?.candidates || {};
   const selectedModel = context?.challengers?.selected_model;
+  const baseline = context?.challengers?.baseline;
+  const baselineComparison = context?.challengers?.baseline_comparison?.[selectedModel];
   if (available) {
+    if (baseline?.pooled) {
+      const baselineNote = document.createElement("p");
+      const baselinePooled = baseline.pooled;
+      const improvement = baselineComparison?.pinball_improvement;
+      const comparisonText = Number.isFinite(improvement)
+        ? ` The selected model ${improvement >= 0 ? "improves" : "does not beat"} baseline pinball loss by ${percent(Math.abs(improvement))}.`
+        : " No learned candidate has been selected for comparison.";
+      baselineNote.textContent = `Simple baseline: each SKU's historical demand quantiles, fitted on the training portion of each fold and ignoring price and calendar. WAPE ${percent(baselinePooled.wape)}; pinball loss ${Number(baselinePooled.pinball_loss).toFixed(3)}.${comparisonText} A weak result can indicate underfitting, limited predictive signal, or data limits; review training and held-out errors before changing model capacity.`;
+      challengerArea.append(baselineNote);
+    }
     const comparisonCards = document.createElement("div");
     comparisonCards.className = "challenger-cards";
     Object.entries(candidates).forEach(([name, candidate]) => {
