@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from math import isfinite
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from math import isfinite
 from typing import Any
 
 import pandas as pd
@@ -51,9 +52,7 @@ def _fold_calibration_rate(validation: dict[str, Any], model_name: str) -> float
         coverage_80 = float(fold["coverage_80"])
         coverage_p10 = float(fold["coverage_p10"])
         coverage_p50 = float(fold["coverage_p50"])
-        coverage_p90 = float(
-            fold.get("coverage_p90", 1.0 - coverage_80 - coverage_p10)
-        )
+        coverage_p90 = float(fold.get("coverage_p90", 1.0 - coverage_80 - coverage_p10))
         if (
             abs(coverage_80 - 0.80) <= interval_tolerance
             and abs(coverage_p10 - 0.10) <= tail_tolerance
@@ -77,9 +76,7 @@ class HistoricalDemandModelStore:
     fallback_on_load: str | None = None
 
     @classmethod
-    def from_bundle(
-        cls, bundle_dir: str, panel: pd.DataFrame
-    ) -> HistoricalDemandModelStore:
+    def from_bundle(cls, bundle_dir: str, panel: pd.DataFrame) -> HistoricalDemandModelStore:
         loaded = load_demand_bundle_with_backup(bundle_dir)
         return cls(
             model=loaded.model,
@@ -104,7 +101,9 @@ class HistoricalDemandModelStore:
         # that did not meet the model's training-history threshold.
         snapshot = self._panel_snapshot_id(data)
         if snapshot != self.manifest["dataset_snapshot_id"]:
-            raise DemandBundleError("The active data panel differs from the model's training snapshot.")
+            raise DemandBundleError(
+                "The active data panel differs from the model's training snapshot."
+            )
         last_observation = pd.Timestamp(data["date"].max()).normalize()
         expected_cutoff = last_observation + pd.Timedelta(days=1)
         self.decision_as_of = expected_cutoff.to_pydatetime()
@@ -115,7 +114,9 @@ class HistoricalDemandModelStore:
 
         data = data[data["sku"].astype(str).isin(supported)].copy()
         if data.empty:
-            raise DemandBundleError("The model bundle's supported SKUs are absent from the data store.")
+            raise DemandBundleError(
+                "The model bundle's supported SKUs are absent from the data store."
+            )
         self.builder = FeatureBuilder(
             data.rename(columns={"list_price": "price"})[["sku", "date", "units", "price"]]
         )
@@ -126,14 +127,18 @@ class HistoricalDemandModelStore:
 
     @staticmethod
     def _panel_snapshot_id(panel: pd.DataFrame) -> str:
-        stable = panel[["sku", "date", "units", "list_price"]].sort_values(
-            ["sku", "date"]
-        ).reset_index(drop=True)
+        stable = (
+            panel[["sku", "date", "units", "list_price"]]
+            .sort_values(["sku", "date"])
+            .reset_index(drop=True)
+        )
         hashed_rows = pd.util.hash_pandas_object(stable, index=False, categorize=True)
         return f"sha256:{hashlib.sha256(hashed_rows.values.tobytes()).hexdigest()}"
 
     def demand_at(self, sku: str, price: float) -> tuple[float, float, float]:
-        raise ModelStoreUnavailable("Historical model predictions require a point-in-time request context.")
+        raise ModelStoreUnavailable(
+            "Historical model predictions require a point-in-time request context."
+        )
 
     def delta_clv_at(self, sku: str, price: float) -> float:
         return 0.0
@@ -185,17 +190,19 @@ class HistoricalDemandModelStore:
             "features": feature_values,
             "dataset_snapshot_id": self.manifest["dataset_snapshot_id"],
         }
-        def make_evidence(
-            manifest: dict[str, Any], model_role: str
-        ) -> DecisionEvidence:
+
+        def make_evidence(manifest: dict[str, Any], model_role: str) -> DecisionEvidence:
             validation = manifest["validation"]
-            feature_snapshot_id = "sha256:" + hashlib.sha256(
-                json.dumps(
-                    {**evidence_features, "model_version": manifest["model_version"]},
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ).encode()
-            ).hexdigest()
+            feature_snapshot_id = (
+                "sha256:"
+                + hashlib.sha256(
+                    json.dumps(
+                        {**evidence_features, "model_version": manifest["model_version"]},
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest()
+            )
             return DecisionEvidence(
                 model_name=manifest["model_name"],
                 model_version=manifest["model_version"],
@@ -248,15 +255,19 @@ class HistoricalDemandModelStore:
                 ),
                 validation_fold_gate_enforced=(
                     validation.get("minimum_fold_calibration_rate") is not None
-                    or validation.get("release_gate", {}).get(
-                        "minimum_fold_calibration_rate"
-                    ) is not None
+                    or validation.get("release_gate", {}).get("minimum_fold_calibration_rate")
+                    is not None
                 ),
                 feature_values=feature_values,
                 model_comparison=validation.get("comparison", {}),
             )
 
-        def make_predictors(model: Any, model_name: str):
+        def make_predictors(
+            model: Any, model_name: str
+        ) -> tuple[
+            Callable[[float], tuple[float, float, float]],
+            Callable[[list[float]], list[tuple[float, float, float]]],
+        ]:
             def validate(
                 forecasts: list[Any], prices: list[float]
             ) -> list[tuple[float, float, float]]:
@@ -347,9 +358,12 @@ class HistoricalDemandModelStore:
                 self.backup_manifest.get("model_version") if self.backup_manifest else None
             ),
             "backup_model_status": (
-                "active_after_primary_load_failure" if self.fallback_on_load
-                else "available" if self.backup_model is not None
-                else "unavailable_load_failed" if self.backup_error
+                "active_after_primary_load_failure"
+                if self.fallback_on_load
+                else "available"
+                if self.backup_model is not None
+                else "unavailable_load_failed"
+                if self.backup_error
                 else self.manifest.get("backup_model_status", "unavailable")
             ),
             "backup_model_error": self.backup_error,
@@ -385,9 +399,8 @@ class HistoricalDemandModelStore:
                 ),
                 "fold_gate_enforced": (
                     validation.get("minimum_fold_calibration_rate") is not None
-                    or validation.get("release_gate", {}).get(
-                        "minimum_fold_calibration_rate"
-                    ) is not None
+                    or validation.get("release_gate", {}).get("minimum_fold_calibration_rate")
+                    is not None
                 ),
                 "calibrated": validation["calibrated"],
                 "folds": validation["folds"],

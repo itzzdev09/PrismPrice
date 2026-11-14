@@ -42,8 +42,8 @@ from prismprice.decision.objective import CandidateOutcome, ObjectiveWeights, sc
 from prismprice.governance.guardrails import GuardrailEngine
 from prismprice.governance.schemas import (
     CandidateScore,
-    DecisionEvidence,
     DecisionEstimates,
+    DecisionEvidence,
     DecisionInputs,
     DecisionRecord,
     DegradationRung,
@@ -148,10 +148,7 @@ class DecisionEngine:
         units_available: float | None = None,
         elasticity: Any = None,
         model_evidence: DecisionEvidence | None = None,
-        demand_at_prices: Callable[
-            [list[float]], list[tuple[float, float, float]]
-        ]
-        | None = None,
+        demand_at_prices: Callable[[list[float]], list[tuple[float, float, float]]] | None = None,
         model_versions: dict[str, str] | None = None,
     ) -> DecisionOutcome:
         """Recommend a price for *request*.

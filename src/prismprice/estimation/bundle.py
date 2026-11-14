@@ -80,7 +80,9 @@ def build_demand_bundle(
     if missing:
         raise ValueError(f"Demand panel is missing columns: {sorted(missing)}")
     if min_observations < _MIN_HISTORY_DAYS + 40:
-        raise ValueError("min_observations must leave at least 40 training rows after feature warmup")
+        raise ValueError(
+            "min_observations must leave at least 40 training rows after feature warmup"
+        )
     if stride < 1:
         raise ValueError("stride must be >= 1")
 
@@ -105,12 +107,12 @@ def build_demand_bundle(
     ]
     training_parts = [part for part in training_parts if not part.empty]
     if not training_parts:
-        raise DemandBundleError(
-            f"No SKU has at least {min_observations} active-sales days."
-        )
+        raise DemandBundleError(f"No SKU has at least {min_observations} active-sales days.")
     training = pd.concat(training_parts).sort_index(level="as_of")
     if len(training) < 200 or training.index.get_level_values("as_of").nunique() < n_folds + 1:
-        raise DemandBundleError("The selected historical panel is too small for temporal validation.")
+        raise DemandBundleError(
+            "The selected historical panel is too small for temporal validation."
+        )
 
     def lightgbm_factory() -> QuantileDemandModel:
         return QuantileDemandModel(
@@ -185,6 +187,7 @@ def build_demand_bundle(
     manifest_path = destination / _MANIFEST_FILENAME
     temporary_models: list[tuple[Path, Path]] = []
     try:
+
         def write_model_temp(fitted_model: Any, final_path: Path) -> tuple[Path, str]:
             with tempfile.NamedTemporaryFile(
                 mode="wb", dir=destination, suffix=".joblib.tmp", delete=False
@@ -194,7 +197,7 @@ def build_demand_bundle(
             joblib.dump(fitted_model, temporary_path, compress=3)
             return temporary_path, hashlib.sha256(temporary_path.read_bytes()).hexdigest()
 
-        temporary_model, artifact_hash = write_model_temp(model, model_path)
+        _temporary_model, artifact_hash = write_model_temp(model, model_path)
         model_version = f"{comparison.selected_model}-{artifact_hash[:16]}"
         backup_artifact: dict[str, Any] | None = None
         if backup_model is not None and backup_score is not None:
@@ -249,9 +252,7 @@ def build_demand_bundle(
                 "folds": [asdict(report) for report in primary_score.folds],
                 "comparison": comparison_payload,
                 "overfit": (
-                    asdict(model.overfit_report)
-                    if model.overfit_report is not None
-                    else None
+                    asdict(model.overfit_report) if model.overfit_report is not None else None
                 ),
                 "release_gate": {
                     "interval_coverage_tolerance_pp": 5.0,
@@ -262,7 +263,8 @@ def build_demand_bundle(
             },
             "backup_model": backup_artifact,
             "backup_model_status": (
-                "validated" if backup_artifact is not None
+                "validated"
+                if backup_artifact is not None
                 else "unavailable_no_other_candidate_passed_calibration"
             ),
             "feature_names": list(model.feature_names),
@@ -303,9 +305,7 @@ class LoadedDemandBundle:
     backup_error: str | None = None
 
 
-def _load_model_artifact(
-    root: Path, filename: str, digest: str, feature_names: list[str]
-) -> Any:
+def _load_model_artifact(root: Path, filename: str, digest: str, feature_names: list[str]) -> Any:
     model_path = root / filename
     try:
         if not model_path.is_file():
@@ -355,7 +355,8 @@ def load_demand_bundle_with_backup(bundle_dir: str | Path) -> LoadedDemandBundle
         raise DemandBundleError("Demand bundle is missing its primary validation report.")
 
     primary_error: str | None = (
-        None if primary_validation.get("calibrated", False)
+        None
+        if primary_validation.get("calibrated", False)
         else "Primary demand model did not pass its rolling-origin calibration gate."
     )
     model: Any | None = None
@@ -377,15 +378,22 @@ def load_demand_bundle_with_backup(bundle_dir: str | Path) -> LoadedDemandBundle
     if backup is not None:
         try:
             if backup.get("filename") != _BACKUP_MODEL_FILENAME:
-                raise DemandBundleError("Backup model manifest contains an unsupported artifact path.")
+                raise DemandBundleError(
+                    "Backup model manifest contains an unsupported artifact path."
+                )
             backup_validation = backup.get("validation", {})
             if not backup_validation.get("calibrated", False):
                 raise DemandBundleError("Backup demand model did not pass its calibration gate.")
-            candidate = manifest.get("validation", {}).get("comparison", {}).get("candidates", {}).get(
-                backup.get("model_name"), {}
+            candidate = (
+                manifest.get("validation", {})
+                .get("comparison", {})
+                .get("candidates", {})
+                .get(backup.get("model_name"), {})
             )
             if not candidate.get("calibrated", False):
-                raise DemandBundleError("Backup model is not marked calibrated in the comparison report.")
+                raise DemandBundleError(
+                    "Backup model is not marked calibrated in the comparison report."
+                )
             backup_model = _load_model_artifact(
                 root,
                 _BACKUP_MODEL_FILENAME,
@@ -398,7 +406,9 @@ def load_demand_bundle_with_backup(bundle_dir: str | Path) -> LoadedDemandBundle
                         f"Backup model {shared_field} differs from the primary model."
                     )
             if tuple(backup.get("feature_names", ())) != tuple(manifest.get("feature_names", ())):
-                raise DemandBundleError("Backup model feature schema differs from the primary model.")
+                raise DemandBundleError(
+                    "Backup model feature schema differs from the primary model."
+                )
             backup_manifest = {
                 **manifest,
                 "model_name": backup["model_name"],

@@ -27,8 +27,8 @@ __all__ = [
     "DecisionModelContext",
     "DecisionModelFallback",
     "InMemoryModelStore",
-    "ModelStore",
     "ModelPredictionUnavailable",
+    "ModelStore",
     "ModelStoreUnavailable",
     "UnavailableModelStore",
 ]

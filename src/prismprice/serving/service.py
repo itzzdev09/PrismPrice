@@ -27,13 +27,15 @@ uninstrumented and outside the audit log, which is strictly worse than holding.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import uuid4
 
 from prismprice.decision.engine import DecisionEngine, DecisionOutcome
 from prismprice.governance.schemas import (
+    DecisionEvidence,
     DecisionInputs,
     DecisionRecord,
     DegradationRung,
@@ -47,8 +49,8 @@ from prismprice.serving.models import (
 )
 
 __all__ = [
-    "DecisionService",
     "DecisionPersistenceError",
+    "DecisionService",
     "ServiceHealth",
 ]
 
@@ -166,6 +168,9 @@ class DecisionService:
         fallback = context.fallback if context is not None and use_fallback else None
         if use_fallback and fallback is None:
             raise ValueError("No validated backup model is available for this decision context.")
+        demand_at_prices: Callable[[list[float]], list[tuple[float, float, float]]] | None
+        model_evidence: DecisionEvidence | None
+        model_versions: dict[str, str] | None
         if fallback is not None:
             demand_at = fallback.demand_at
             demand_at_prices = fallback.demand_at_prices
@@ -184,15 +189,9 @@ class DecisionService:
             request,
             demand_at=demand_at,
             delta_clv_at=(
-                context.delta_clv_at
-                if context is not None and fallback is None
-                else None
+                context.delta_clv_at if context is not None and fallback is None else None
             ),
-            elasticity=(
-                context.elasticity
-                if context is not None and fallback is None
-                else None
-            ),
+            elasticity=(context.elasticity if context is not None and fallback is None else None),
             model_evidence=model_evidence,
             model_versions=model_versions,
             demand_at_prices=demand_at_prices,
@@ -255,7 +254,7 @@ class DecisionService:
         """Describe connected model evidence and explicitly unavailable layers."""
         provider = getattr(self.store, "workbench_context", None)
         if provider is not None:
-            context = provider()
+            context = cast(dict[str, Any], provider())
             capabilities = context.setdefault("capabilities", {})
             capabilities["durable_decisions"] = (
                 "connected" if self.repository is not None else "not_connected"

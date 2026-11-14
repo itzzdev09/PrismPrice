@@ -44,9 +44,9 @@ from prismprice.compute import lightgbm_device_params
 
 __all__ = [
     "CalibrationReport",
+    "DemandForecast",
     "DemandModelComparisonReport",
     "DemandModelScorecard",
-    "DemandForecast",
     "HistGradientBoostingDemandModel",
     "OverfitReport",
     "QuantileDemandModel",
@@ -259,9 +259,7 @@ class DemandModelComparisonReport:
                     "pinball_improvement": _relative_improvement(
                         baseline_pinball, score.pooled.pinball_loss
                     ),
-                    "wape_improvement": _relative_improvement(
-                        baseline_wape, score.pooled.wape
-                    ),
+                    "wape_improvement": _relative_improvement(baseline_wape, score.pooled.wape),
                 }
         return {
             "candidates": {name: score.as_dict() for name, score in self.candidates.items()},
@@ -782,8 +780,7 @@ def compare_demand_models(
         raise ValueError("At least one demand model factory is required")
     if not 0.0 < min_calibrated_fold_fraction <= 1.0:
         raise ValueError(
-            "min_calibrated_fold_fraction must be in (0, 1], "
-            f"got {min_calibrated_fold_fraction}"
+            f"min_calibrated_fold_fraction must be in (0, 1], got {min_calibrated_fold_fraction}"
         )
     if "as_of" not in (frame.index.names or []):
         raise ValueError("Backtest frame must carry an 'as_of' index level")
@@ -799,9 +796,7 @@ def compare_demand_models(
     boundaries = np.linspace(start, len(dates), n_folds + 1).astype(int)
     pooled_actual: dict[str, list[pd.Series]] = {name: [] for name in model_factories}
     pooled_predicted: dict[str, list[pd.DataFrame]] = {name: [] for name in model_factories}
-    fold_reports: dict[str, list[CalibrationReport]] = {
-        name: [] for name in model_factories
-    }
+    fold_reports: dict[str, list[CalibrationReport]] = {name: [] for name in model_factories}
     baseline_fold_reports: list[CalibrationReport] = []
     baseline_actual: list[pd.Series] = []
     baseline_predicted: list[pd.DataFrame] = []
@@ -840,12 +835,14 @@ def compare_demand_models(
             and pooled.median_calibrated(median_tolerance_pp)
         )
         fold_calibration_rate = float(
-            np.mean([
-                report.interval_calibrated(interval_tolerance_pp)
-                and report.tails_calibrated(tail_tolerance_pp)
-                and report.median_calibrated(median_tolerance_pp)
-                for report in fold_reports[name]
-            ])
+            np.mean(
+                [
+                    report.interval_calibrated(interval_tolerance_pp)
+                    and report.tails_calibrated(tail_tolerance_pp)
+                    and report.median_calibrated(median_tolerance_pp)
+                    for report in fold_reports[name]
+                ]
+            )
         )
         calibrated = pooled_calibrated and fold_calibration_rate >= min_calibrated_fold_fraction
         candidates[name] = DemandModelScorecard(
@@ -860,21 +857,21 @@ def compare_demand_models(
 
     if not baseline_fold_reports:
         raise ValueError("No fold had enough data to score the historical baseline")
-    baseline_pooled = calibration_report(
-        pd.concat(baseline_actual), pd.concat(baseline_predicted)
-    )
+    baseline_pooled = calibration_report(pd.concat(baseline_actual), pd.concat(baseline_predicted))
     baseline_pooled_calibrated = (
         baseline_pooled.interval_calibrated(interval_tolerance_pp)
         and baseline_pooled.tails_calibrated(tail_tolerance_pp)
         and baseline_pooled.median_calibrated(median_tolerance_pp)
     )
     baseline_fold_calibration_rate = float(
-        np.mean([
-            report.interval_calibrated(interval_tolerance_pp)
-            and report.tails_calibrated(tail_tolerance_pp)
-            and report.median_calibrated(median_tolerance_pp)
-            for report in baseline_fold_reports
-        ])
+        np.mean(
+            [
+                report.interval_calibrated(interval_tolerance_pp)
+                and report.tails_calibrated(tail_tolerance_pp)
+                and report.median_calibrated(median_tolerance_pp)
+                for report in baseline_fold_reports
+            ]
+        )
     )
     baseline_calibrated = (
         baseline_pooled_calibrated

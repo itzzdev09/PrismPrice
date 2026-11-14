@@ -105,9 +105,7 @@ class SecurityHeadersMiddleware:
                     "/internal/health",
                 }:
                     headers = [
-                        (name, value)
-                        for name, value in headers
-                        if name.lower() != b"cache-control"
+                        (name, value) for name, value in headers if name.lower() != b"cache-control"
                     ]
                     headers.append((b"cache-control", b"no-store"))
                 headers.extend(

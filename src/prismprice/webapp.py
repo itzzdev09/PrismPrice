@@ -27,9 +27,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 def create_demo_app() -> Any:
     """Build the UI/API around a verified model bundle and local decision ledger."""
     database_path = Path(os.getenv("PRISMPRICE_DB_PATH", _ROOT / "data" / "prismprice.duckdb"))
-    bundle_path = Path(
-        os.getenv("PRISMPRICE_MODEL_BUNDLE", _ROOT / "artifacts" / "demand-bundle")
-    )
+    bundle_path = Path(os.getenv("PRISMPRICE_MODEL_BUNDLE", _ROOT / "artifacts" / "demand-bundle"))
     price_store = None
     repository = None
     model_store: Any
@@ -55,9 +53,15 @@ def create_demo_app() -> Any:
         panel = price_store.daily_panel()
         model_store = HistoricalDemandModelStore.from_bundle(str(bundle_path), panel)
         if model_store.fallback_on_load:
-            logger.warning("Primary demand model unavailable; validated standby promoted: %s", model_store.fallback_on_load)
+            logger.warning(
+                "Primary demand model unavailable; validated standby promoted: %s",
+                model_store.fallback_on_load,
+            )
         if model_store.backup_error:
-            logger.warning("Standby demand model unavailable; primary remains active: %s", model_store.backup_error)
+            logger.warning(
+                "Standby demand model unavailable; primary remains active: %s",
+                model_store.backup_error,
+            )
     except Exception as exc:
         logger.warning("Historical demand model unavailable: %s", exc)
         model_store = UnavailableModelStore(

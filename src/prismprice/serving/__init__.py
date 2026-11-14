@@ -1,24 +1,24 @@
 """Serving layer (L6): the decision service, model store and HTTP API."""
 
 from prismprice.serving.models import (
-    DecisionModelFallback,
     DecisionModelContext,
+    DecisionModelFallback,
     InMemoryModelStore,
-    ModelStore,
     ModelPredictionUnavailable,
+    ModelStore,
     ModelStoreUnavailable,
     UnavailableModelStore,
 )
 from prismprice.serving.service import DecisionPersistenceError, DecisionService, ServiceHealth
 
 __all__ = [
-    "DecisionService",
-    "DecisionModelFallback",
     "DecisionModelContext",
+    "DecisionModelFallback",
     "DecisionPersistenceError",
+    "DecisionService",
     "InMemoryModelStore",
-    "ModelStore",
     "ModelPredictionUnavailable",
+    "ModelStore",
     "ModelStoreUnavailable",
     "ServiceHealth",
     "UnavailableModelStore",
