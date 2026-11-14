@@ -56,14 +56,17 @@ Ninety days because the repurchase cycle for the target categories sits inside i
 | Metric | Definition | Threshold |
 | --- | --- | --- |
 | Demand WAPE | $\sum\|q - \hat{q}\| / \sum q$, by horizon | > prior model + 2pp |
-| Quantile calibration | Empirical coverage of p10/p90 | Outside nominal ± 3pp |
+| Quantile calibration | Empirical coverage below p10, p50, and p90; plus p10–p90 interval coverage | Outside nominal by > 5pp, or fewer than 2/3 temporal folds pass |
+| Median forecast bias | Mean p50 forecast minus actual demand, in units per active day | Same direction in 2+ folds; inspect data drift and features before changing policy |
+| Median forecast MAE | Mean absolute p50 error, in units per active day | Compare by SKU group and against the prior bundle |
+| Prediction interval width | Mean p90 − p10, in units per active day | Compare only after calibration; do not reward a narrow but under-covering interval |
 | Elasticity CI width | $\text{ci}_{\text{high}} - \text{ci}_{\text{low}}$, distribution across SKUs | Median > $\tau_{\max}$ |
 | Elasticity sign violations | Share of SKUs with $\hat{\beta} \ge 0$ | > 2% |
 | Feature drift | PSI vs. training window, per feature | PSI > 0.25 |
 | Prediction drift | PSI on predicted demand distribution | PSI > 0.25 |
 | OPE uplift | Doubly-robust estimate vs. logged policy, with CI | CI includes 0 → do not ship |
 
-**Quantile calibration is the one to watch.** The objective samples the demand distribution, so if p10/p90 are dishonest the CVaR term is meaningless and the risk penalty is decorative — the system will look risk-aware while taking unmeasured risk. Coverage is checked on a rolling-origin backtest, never in-sample.
+**Quantile calibration is the one to watch.** The objective samples the demand distribution, so if p10/p90 are dishonest the CVaR term is meaningless and the risk penalty is decorative — the system will look risk-aware while taking unmeasured risk. Coverage is checked on a rolling-origin backtest, never in-sample. Bundle selection requires pooled calibration and calibration on at least two thirds of the temporal folds; pooled averages alone cannot hide a weak period. Among passing candidates, pooled pinball loss decides the ranking. Median hit rate, signed bias, MAE, and interval width are reported alongside WAPE so point accuracy, calibration, and sharpness stay distinct.
 
 A positive estimated elasticity is almost always confounding rather than a Giffen good. Sign violations are a DML health check, not a finding.
 

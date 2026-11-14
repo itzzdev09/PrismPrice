@@ -444,6 +444,13 @@ class DecisionEvidence(BaseModel):
     validation_coverage_80: float = Field(..., ge=0, le=1)
     validation_p10_coverage: float = Field(..., ge=0, le=1)
     validation_calibrated: bool
+    validation_coverage_p50: float | None = Field(None, ge=0, le=1)
+    validation_coverage_p90: float | None = Field(None, ge=0, le=1)
+    validation_mean_absolute_error: float | None = Field(None, ge=0)
+    validation_mean_error: float | None = None
+    validation_mean_interval_width: float | None = Field(None, ge=0)
+    validation_fold_calibration_rate: float | None = Field(None, ge=0, le=1)
+    validation_fold_gate_enforced: bool | None = None
     feature_values: dict[str, float | None] = Field(default_factory=dict)
     model_comparison: dict[str, object] = Field(default_factory=dict)
 

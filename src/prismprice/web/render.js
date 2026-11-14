@@ -103,7 +103,9 @@ function renderModelEvidence(record, target) {
     "",
     evidence.model_role === "backup"
       ? "Validated backup model used"
-      : evidence.validation_calibrated ? "Temporal calibration gate passed" : "Calibration gate not passed",
+      : evidence.validation_fold_gate_enforced && evidence.validation_calibrated
+        ? "Calibration and fold gates passed"
+        : evidence.validation_calibrated ? "Pooled calibration gate passed" : "Calibration gate not passed",
   ));
   section.append(heading);
   const metrics = element("div", "evidence-metrics");
@@ -116,10 +118,23 @@ function renderModelEvidence(record, target) {
     item.append(element("span", "", label), element("strong", "", value));
     metrics.append(item);
   });
+  const additionalMetrics = [
+    ["P50 hit rate · target 50%", evidence.validation_coverage_p50, (value) => `${number(value * 100)}%`],
+    ["Median forecast MAE", evidence.validation_mean_absolute_error, (value) => `${number(value, 2)} units / active day`],
+    ["Median forecast bias", evidence.validation_mean_error, (value) => `${value > 0 ? "+" : ""}${number(value, 2)} units / active day`],
+    ["Average P10–P90 width", evidence.validation_mean_interval_width, (value) => `${number(value, 2)} units / active day`],
+    ["Temporal fold pass rate", evidence.validation_fold_calibration_rate, (value) => `${number(value * 100)}%`],
+  ];
+  additionalMetrics.filter(([, value]) => Number.isFinite(value)).forEach(([label, value, format]) => {
+    const item = element("div", "evidence-metric");
+    item.append(element("span", "", label), element("strong", "", format(value)));
+    metrics.append(item);
+  });
   section.append(metrics);
   section.append(element("p", "evidence-detail",
     `${evidence.model_name} ${evidence.model_version} · ${evidence.dataset_name} · trained through ${evidence.training_through.slice(0, 10)}. `
     + `${evidence.observations_used} active sales observations for this SKU; demand is measured in ${evidence.demand_unit}. `
+    + `Fold pass rate is ${evidence.validation_fold_gate_enforced ? "part of the release gate" : "diagnostic for this bundle"}. `
     + `Held-out P10 tail coverage ${number(evidence.validation_p10_coverage * 100)}%; model digest ${evidence.artifact_sha256?.slice(0, 16) || "not recorded"}; `
     + `feature snapshot ${evidence.feature_snapshot_id.slice(0, 19)}…`));
   if (evidence.model_role === "backup" && record.degradation_detail) {

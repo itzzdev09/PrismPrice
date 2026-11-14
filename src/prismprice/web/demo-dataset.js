@@ -326,10 +326,37 @@ function renderWorkbenchContext(context) {
   const capabilities = document.querySelector("#capability-status-list");
   const modelName = context?.model_name || "No model bundle loaded";
   const modelVersion = context?.model_version || "";
-  const percent = (value) => Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "—";
+  const demandUnits = (value, signed = false) => {
+    if (value == null || !Number.isFinite(Number(value))) return "—";
+    const numeric = Number(value);
+    const sign = signed && numeric > 0 ? "+" : "";
+    return `${sign}${numeric.toFixed(2)} units / active day`;
+  };
+  const selectedCandidate = context?.challengers?.candidates?.[context?.challengers?.selected_model];
+  const validationCandidate = context?.challengers?.candidates?.[modelName] || selectedCandidate;
+  const validationPooled = validationCandidate?.pooled || {};
+  const medianCoverage = validation?.coverage_p50 ?? validationPooled.coverage_p50;
+  const foldCalibrationRate = validation?.fold_calibration_rate != null && Number.isFinite(Number(validation.fold_calibration_rate))
+    ? Number(validation.fold_calibration_rate)
+    : validationCandidate?.fold_calibration_rate != null && Number.isFinite(Number(validationCandidate.fold_calibration_rate))
+      ? Number(validationCandidate.fold_calibration_rate)
+      : null;
+  const minimumFoldRate = Number(validation?.minimum_fold_calibration_rate)
+    || Number(validation?.release_gate?.minimum_fold_calibration_rate)
+    || 2 / 3;
+  const foldThresholdLabel = Math.abs(minimumFoldRate - 2 / 3) < 1e-6
+    ? "two thirds" : `${(minimumFoldRate * 100).toFixed(1)}%`;
+  const percent = (value) => value != null && Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "—";
+  const foldGatePassed = foldCalibrationRate !== null && foldCalibrationRate >= minimumFoldRate;
+  const calibrationGatePassed = Boolean(validation?.calibrated)
+    && (!validation?.fold_gate_enforced || foldGatePassed);
 
   modelState.textContent = available
-    ? (validation?.calibrated ? "Bundle loaded · calibration gate passed" : "Bundle loaded · calibration not passed")
+    ? calibrationGatePassed
+      ? validation?.fold_gate_enforced
+        ? "Bundle loaded · calibration and fold gates passed"
+        : "Bundle loaded · pooled calibration gate passed"
+      : "Bundle loaded · calibration gate not passed"
     : "Model unavailable · decisions hold";
   modelState.dataset.mode = available ? "connected" : "offline";
   modelTitle.textContent = available ? modelName.replaceAll("_", " ") : "No validated demand bundle";
@@ -340,7 +367,7 @@ function renderWorkbenchContext(context) {
   [
     ["WAPE", percent(validation?.wape)],
     ["80% interval coverage", percent(validation?.coverage_80)],
-    ["Historical cut-off", context?.data_through?.slice(0, 10) || "Not loaded"],
+    ["P50 hit rate · target 50%", percent(medianCoverage)],
   ].forEach(([label, value]) => {
     const item = document.createElement("div");
     item.className = "hero-model-stat";
@@ -358,7 +385,15 @@ function renderWorkbenchContext(context) {
   stats.replaceChildren();
   [
     metricCard("Validation WAPE", percent(validation?.wape), `${count.format(validation?.rows || 0)} held-out predictions`),
-    metricCard("80% interval coverage", percent(validation?.coverage_80), validation?.calibrated ? "Temporal calibration gate passed" : "No calibrated forecast available"),
+    metricCard("80% interval coverage", percent(validation?.coverage_80), calibrationGatePassed ? "Calibration release gate passed" : "Calibration gate not passed"),
+    metricCard("P50 hit rate · target 50%", percent(medianCoverage), "Share of actual demand below the median forecast"),
+    metricCard("Median forecast bias", demandUnits(validation?.mean_error, true), "Positive means the median forecast is high"),
+    metricCard("Average P10–P90 width", demandUnits(validation?.mean_interval_width), "Forecast spread carried into downside scoring"),
+    metricCard("Temporal fold pass rate", foldCalibrationRate === null
+      ? "Not recorded" : `${(foldCalibrationRate * 100).toFixed(1)}%`,
+    validation?.fold_gate_enforced
+      ? `Selection gate: at least ${foldThresholdLabel} pass`
+      : "Diagnostic only; this bundle predates the fold gate"),
     metricCard("Demand unit", context?.demand_unit || "Unavailable", "Positive units per active sales day"),
   ].forEach((card) => { card.classList.add("scope-metric-card"); stats.append(card); });
   const overfit = validation?.overfit;
@@ -405,9 +440,18 @@ function renderWorkbenchContext(context) {
       card.className = `challenger-card${name === selectedModel ? " is-selected" : ""}`;
       const title = document.createElement("strong"); title.textContent = name.replaceAll("_", " ");
       const status = document.createElement("span");
-      status.textContent = name === selectedModel ? "Selected bundle" : candidate.calibrated ? "Calibrated challenger" : "Calibration gate failed";
+      const calibrationPass = candidate.calibrated ?? candidate.pooled_calibrated;
+      const stableAcrossFolds = candidate.fold_calibration_rate != null
+        && Number(candidate.fold_calibration_rate) >= minimumFoldRate;
+      status.textContent = name === selectedModel ? "Selected bundle"
+        : calibrationPass && stableAcrossFolds ? "Calibration stable across folds"
+          : calibrationPass && candidate.fold_calibration_rate == null
+            ? "Pooled calibration passed" : "Calibration gate failed";
       const measures = document.createElement("small");
-      measures.textContent = `WAPE ${percent(pooled.wape)} · 80% coverage ${percent(pooled.coverage_80)} · P10 tail ${percent(pooled.coverage_p10)}`;
+      const medianCoverage = pooled.coverage_p50 == null ? "P50 hit rate not recorded" : `P50 hit ${percent(pooled.coverage_p50)}`;
+      const foldCoverage = candidate.fold_calibration_rate == null
+        ? "fold stability not recorded" : `stable folds ${percent(candidate.fold_calibration_rate)}`;
+      measures.textContent = `WAPE ${percent(pooled.wape)} · 80% coverage ${percent(pooled.coverage_80)} · ${medianCoverage} · ${foldCoverage}`;
       card.append(title, status, measures); comparisonCards.append(card);
     });
     challengerArea.append(comparisonCards);

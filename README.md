@@ -219,13 +219,13 @@ The connected workbench assembles SKU history strictly before `as_of`: observed 
 
 ### L2 — Estimation
 - **Demand model**: the local bundle contains a fitted quantile model, temporal calibration metrics, data snapshot, artifact digest, and supported SKU list.
-- **Challenger comparison**: the bundle builder compares LightGBM and scikit-learn quantile models on identical expanding time folds and refuses to publish when neither passes interval and tail calibration gates.
+- **Challenger comparison**: the bundle builder compares LightGBM and scikit-learn quantile models on identical expanding time folds and refuses to publish when neither passes pooled interval, tail, and median calibration plus the per-fold stability gate.
 - **Causal elasticity, retention/CLV, and competitor response**: research modules exist, but they are not consumed by the connected workbench.
 - The demand model learns historical associations; observed prices were not randomized, so its curve does not identify the causal effect of changing a price.
 
 #### Demand model second opinion
 
-The local bundle builder runs both quantile candidates on the **same expanding, time-ordered folds**. It records each candidate's WAPE, pinball loss, interval coverage, lower-tail coverage, and fold scores, then selects among candidates that pass the calibration gates. This supports the historical workbench; it is not retailer-specific model approval.
+The local bundle builder runs both quantile candidates on the **same expanding, time-ordered folds**. It records each candidate's WAPE, pinball loss, MAE, signed median bias, interval width, p10/p50/p90 hit rates, and fold scores. Selection requires pooled calibration and at least two thirds of folds to pass before pooled pinball loss ranks the candidates. This supports the historical workbench; it is not retailer-specific model approval.
 
 ```python
 from prismprice.estimation import compare_demand_models
@@ -322,7 +322,7 @@ The API reports these decision states in each audit record:
 | **4** | No feasible candidate | Hold the current price and record the fallback | `FALLBACK_RULE_ENGINE` |
 | **5** | Model store is unavailable | Hold the current price and record the outage | `CRITICAL_MAINTAIN_PREV` |
 
-The bundle builder promotes a standby only when a distinct challenger passes the same temporal interval and tail-calibration gates as the primary. If no challenger passes, the primary remains usable and the service holds the current price if it later fails.
+The bundle builder promotes a standby only when a distinct challenger passes the same pooled interval, tail, and median-calibration gates plus the temporal fold-stability gate as the primary. If no challenger passes, the primary remains usable and the service holds the current price if it later fails.
 
 The rung is derived from the reason code rather than stored alongside it, so the number and the code cannot disagree in an audit record.
 
@@ -340,7 +340,7 @@ Four dashboards, four audiences. Every metric has an owner and a threshold.
 
 - **Executive** — contribution profit vs. plan, gross margin %, revenue, realised vs. recommended price adherence, retention cohort curves, price perception index.
 - **Commercial / category manager** — per-SKU recommendation and reason, margin bridge (volume vs. price vs. mix), guardrail bind rate, competitor position, inventory cover and markdown risk.
-- **Data science** — demand WAPE/MAPE by horizon, quantile calibration (are p10/p90 honest?), causal elasticity CI width, drift (PSI), off-policy uplift estimates with confidence bands.
+- **Data science** — demand WAPE by horizon, p10/p50/p90 calibration, signed median bias and interval width, causal elasticity CI width, drift (PSI), off-policy uplift estimates with confidence bands.
 - **Engineering** — decision latency p50/p95/p99, error rate, feature freshness, degradation-rung distribution, fallback frequency, throughput.
 
 **The headline metric** is contribution profit per customer over a rolling 90 days — because it is the one number that moves only when both halves of the trade-off are handled well.

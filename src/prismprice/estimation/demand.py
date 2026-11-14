@@ -90,8 +90,16 @@ class CalibrationReport:
     """Share below p10. Nominal is 0.10."""
     coverage_p50: float
     """Share below p50. Nominal is 0.50."""
+    coverage_p90: float
+    """Share below p90. Nominal is 0.90."""
     wape: float
     """Weighted absolute percentage error of the median forecast."""
+    mean_absolute_error: float
+    """Mean absolute median forecast error, in demand units."""
+    mean_error: float
+    """Signed median forecast error (forecast - actual); positive means overforecast."""
+    mean_interval_width: float
+    """Average p90 - p10 width, in demand units; lower is sharper at equal coverage."""
     pinball_loss: float
 
     def interval_calibrated(self, tolerance_pp: float = 3.0) -> bool:
@@ -118,18 +126,27 @@ class CalibrationReport:
         tolerance = tolerance_pp / 100.0
         return (
             abs(self.coverage_p10 - 0.10) <= tolerance
-            and abs((1.0 - self.coverage_80 - self.coverage_p10) - 0.10) <= tolerance
+            and abs((1.0 - self.coverage_p90) - 0.10) <= tolerance
         )
 
+    def median_calibrated(self, tolerance_pp: float = 5.0) -> bool:
+        """Does the median forecast split outcomes close to 50/50?"""
+        return abs(self.coverage_p50 - 0.50) <= tolerance_pp / 100.0
+
     def is_calibrated(self, tolerance_pp: float = 5.0) -> bool:
-        """Both gates: right width and right placement."""
-        return self.interval_calibrated(tolerance_pp) and self.tails_calibrated(tolerance_pp)
+        """Are the interval, tails, and central quantile calibrated?"""
+        return (
+            self.interval_calibrated(tolerance_pp)
+            and self.tails_calibrated(tolerance_pp)
+            and self.median_calibrated(tolerance_pp)
+        )
 
     def summary(self) -> str:
         return (
             f"n={self.n} coverage80={self.coverage_80:.3f} (nominal 0.800) "
             f"p10={self.coverage_p10:.3f} p50={self.coverage_p50:.3f} "
-            f"wape={self.wape:.4f} pinball={self.pinball_loss:.4f}"
+            f"p90={self.coverage_p90:.3f} wape={self.wape:.4f} "
+            f"bias={self.mean_error:+.3f} pinball={self.pinball_loss:.4f}"
         )
 
 
@@ -206,11 +223,17 @@ class DemandModelScorecard:
     pooled: CalibrationReport
     folds: tuple[CalibrationReport, ...]
     calibrated: bool
+    pooled_calibrated: bool
+    fold_calibration_rate: float
+    minimum_fold_calibration_rate: float
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "model_name": self.model_name,
             "calibrated": self.calibrated,
+            "pooled_calibrated": self.pooled_calibrated,
+            "fold_calibration_rate": self.fold_calibration_rate,
+            "minimum_fold_calibration_rate": self.minimum_fold_calibration_rate,
             "pooled": self.pooled.__dict__.copy(),
             "folds": [report.__dict__.copy() for report in self.folds],
         }
@@ -629,6 +652,10 @@ def calibration_report(actual: pd.Series, predicted: pd.DataFrame) -> Calibratio
     p10 = predicted["p10"].to_numpy(dtype=float)
     p50 = predicted["p50"].to_numpy(dtype=float)
     p90 = predicted["p90"].to_numpy(dtype=float)
+    if not (p10.shape == p50.shape == p90.shape == truth.shape):
+        raise ValueError("actual and p10/p50/p90 predictions must align")
+    if np.any((p10 > p50) | (p50 > p90)):
+        raise ValueError("demand quantiles must be ordered p10 <= p50 <= p90")
 
     denominator = float(np.sum(np.abs(truth))) or 1.0
     return CalibrationReport(
@@ -636,7 +663,11 @@ def calibration_report(actual: pd.Series, predicted: pd.DataFrame) -> Calibratio
         coverage_80=float(np.mean((truth >= p10) & (truth <= p90))),
         coverage_p10=float(np.mean(truth < p10)),
         coverage_p50=float(np.mean(truth < p50)),
+        coverage_p90=float(np.mean(truth < p90)),
         wape=float(np.sum(np.abs(truth - p50))) / denominator,
+        mean_absolute_error=float(np.mean(np.abs(truth - p50))),
+        mean_error=float(np.mean(p50 - truth)),
+        mean_interval_width=float(np.mean(p90 - p10)),
         pinball_loss=float(
             np.mean(
                 [_pinball(truth, p10, 0.1), _pinball(truth, p50, 0.5), _pinball(truth, p90, 0.9)]
@@ -731,13 +762,16 @@ def compare_demand_models(
     target_column: str = "target_units",
     interval_tolerance_pp: float = 3.0,
     tail_tolerance_pp: float = 5.0,
+    median_tolerance_pp: float = 5.0,
+    min_calibrated_fold_fraction: float = 2.0 / 3.0,
 ) -> DemandModelComparisonReport:
     """Compare a primary quantile model with independent challengers.
 
-    Every candidate sees the same expanding temporal folds. Selection is based
-    on pooled pinball loss only among candidates whose pooled 80% interval and
-    tail placement pass the configured calibration gates. This is an offline
-    evaluation aid: it does not alter serving or automatically promote a model.
+    Every candidate sees the same expanding temporal folds. Selection uses
+    pooled pinball loss only among candidates that pass pooled interval, tail,
+    and median calibration, and pass those checks on a sufficient share of the
+    individual folds. This avoids hiding a weak period inside a good pooled
+    average. It is an offline aid; it does not automatically promote a model.
     """
     if model_factories is None:
         model_factories = {
@@ -746,6 +780,11 @@ def compare_demand_models(
         }
     if not model_factories:
         raise ValueError("At least one demand model factory is required")
+    if not 0.0 < min_calibrated_fold_fraction <= 1.0:
+        raise ValueError(
+            "min_calibrated_fold_fraction must be in (0, 1], "
+            f"got {min_calibrated_fold_fraction}"
+        )
     if "as_of" not in (frame.index.names or []):
         raise ValueError("Backtest frame must carry an 'as_of' index level")
     if target_column not in frame.columns:
@@ -795,14 +834,28 @@ def compare_demand_models(
         pooled = calibration_report(
             pd.concat(pooled_actual[name]), pd.concat(pooled_predicted[name])
         )
-        calibrated = pooled.interval_calibrated(interval_tolerance_pp) and pooled.tails_calibrated(
-            tail_tolerance_pp
+        pooled_calibrated = (
+            pooled.interval_calibrated(interval_tolerance_pp)
+            and pooled.tails_calibrated(tail_tolerance_pp)
+            and pooled.median_calibrated(median_tolerance_pp)
         )
+        fold_calibration_rate = float(
+            np.mean([
+                report.interval_calibrated(interval_tolerance_pp)
+                and report.tails_calibrated(tail_tolerance_pp)
+                and report.median_calibrated(median_tolerance_pp)
+                for report in fold_reports[name]
+            ])
+        )
+        calibrated = pooled_calibrated and fold_calibration_rate >= min_calibrated_fold_fraction
         candidates[name] = DemandModelScorecard(
             model_name=name,
             pooled=pooled,
             folds=tuple(fold_reports[name]),
             calibrated=calibrated,
+            pooled_calibrated=pooled_calibrated,
+            fold_calibration_rate=fold_calibration_rate,
+            minimum_fold_calibration_rate=min_calibrated_fold_fraction,
         )
 
     if not baseline_fold_reports:
@@ -810,28 +863,52 @@ def compare_demand_models(
     baseline_pooled = calibration_report(
         pd.concat(baseline_actual), pd.concat(baseline_predicted)
     )
-    baseline_calibrated = baseline_pooled.interval_calibrated(
-        interval_tolerance_pp
-    ) and baseline_pooled.tails_calibrated(tail_tolerance_pp)
+    baseline_pooled_calibrated = (
+        baseline_pooled.interval_calibrated(interval_tolerance_pp)
+        and baseline_pooled.tails_calibrated(tail_tolerance_pp)
+        and baseline_pooled.median_calibrated(median_tolerance_pp)
+    )
+    baseline_fold_calibration_rate = float(
+        np.mean([
+            report.interval_calibrated(interval_tolerance_pp)
+            and report.tails_calibrated(tail_tolerance_pp)
+            and report.median_calibrated(median_tolerance_pp)
+            for report in baseline_fold_reports
+        ])
+    )
+    baseline_calibrated = (
+        baseline_pooled_calibrated
+        and baseline_fold_calibration_rate >= min_calibrated_fold_fraction
+    )
     baseline_score = DemandModelScorecard(
         model_name="per_sku_historical_quantile_baseline",
         pooled=baseline_pooled,
         folds=tuple(baseline_fold_reports),
         calibrated=baseline_calibrated,
+        pooled_calibrated=baseline_pooled_calibrated,
+        fold_calibration_rate=baseline_fold_calibration_rate,
+        minimum_fold_calibration_rate=min_calibrated_fold_fraction,
     )
 
     eligible = [score for score in candidates.values() if score.calibrated]
     selected = min(eligible, key=lambda score: score.pooled.pinball_loss) if eligible else None
     if selected is None:
         selection_rule = (
-            "No candidate passed both pooled interval and tail calibration gates; "
-            "review the scorecards before using any model."
+            "No candidate passed pooled interval, tail, and median calibration "
+            "plus the minimum per-fold stability gate; review the scorecards "
+            "before using any model."
         )
     else:
+        fold_threshold = (
+            "two thirds"
+            if abs(min_calibrated_fold_fraction - 2.0 / 3.0) < 1e-9
+            else f"{min_calibrated_fold_fraction:.1%}"
+        )
         selection_rule = (
-            "Lowest pooled pinball loss among candidates passing both pooled "
-            "interval and tail calibration gates. This comparison returns a "
-            "candidate; an explicit bundle build is required to serve it."
+            "Lowest pooled pinball loss among candidates passing pooled interval, "
+            "tail, and median calibration and passing calibration on at least "
+            f"{fold_threshold} of temporal folds. This comparison "
+            "returns a candidate; an explicit bundle build is required to serve it."
         )
 
     return DemandModelComparisonReport(

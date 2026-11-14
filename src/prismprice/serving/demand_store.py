@@ -27,6 +27,43 @@ from prismprice.serving.models import (
 __all__ = ["HistoricalDemandModelStore"]
 
 
+def _fold_calibration_rate(validation: dict[str, Any], model_name: str) -> float | None:
+    """Read a stored fold rate or derive it from older comparison manifests."""
+    comparison = validation.get("comparison", {})
+    candidates = comparison.get("candidates", {}) if isinstance(comparison, dict) else {}
+    candidate = candidates.get(model_name, {}) if isinstance(candidates, dict) else {}
+    folds = candidate.get("folds", []) if isinstance(candidate, dict) else []
+    if not folds:
+        return None
+    if any(
+        not isinstance(fold, dict)
+        or not {"coverage_80", "coverage_p10", "coverage_p50"}.issubset(fold)
+        for fold in folds
+    ):
+        return None
+
+    release_gate = validation.get("release_gate", {})
+    interval_tolerance = float(release_gate.get("interval_coverage_tolerance_pp", 5.0)) / 100.0
+    tail_tolerance = float(release_gate.get("tail_coverage_tolerance_pp", 5.0)) / 100.0
+    median_tolerance = float(release_gate.get("median_coverage_tolerance_pp", 5.0)) / 100.0
+    passing = 0
+    for fold in folds:
+        coverage_80 = float(fold["coverage_80"])
+        coverage_p10 = float(fold["coverage_p10"])
+        coverage_p50 = float(fold["coverage_p50"])
+        coverage_p90 = float(
+            fold.get("coverage_p90", 1.0 - coverage_80 - coverage_p10)
+        )
+        if (
+            abs(coverage_80 - 0.80) <= interval_tolerance
+            and abs(coverage_p10 - 0.10) <= tail_tolerance
+            and abs((1.0 - coverage_p90) - 0.10) <= tail_tolerance
+            and abs(coverage_p50 - 0.50) <= median_tolerance
+        ):
+            passing += 1
+    return passing / len(folds)
+
+
 @dataclass
 class HistoricalDemandModelStore:
     """Serve one pinned model against a matching, point-in-time feature panel."""
@@ -179,6 +216,42 @@ class HistoricalDemandModelStore:
                 validation_coverage_80=float(validation["coverage_80"]),
                 validation_p10_coverage=float(validation["coverage_p10"]),
                 validation_calibrated=bool(validation["calibrated"]),
+                validation_coverage_p50=(
+                    float(validation["coverage_p50"])
+                    if validation.get("coverage_p50") is not None
+                    else None
+                ),
+                validation_coverage_p90=(
+                    float(validation["coverage_p90"])
+                    if validation.get("coverage_p90") is not None
+                    else None
+                ),
+                validation_mean_absolute_error=(
+                    float(validation["mean_absolute_error"])
+                    if validation.get("mean_absolute_error") is not None
+                    else None
+                ),
+                validation_mean_error=(
+                    float(validation["mean_error"])
+                    if validation.get("mean_error") is not None
+                    else None
+                ),
+                validation_mean_interval_width=(
+                    float(validation["mean_interval_width"])
+                    if validation.get("mean_interval_width") is not None
+                    else None
+                ),
+                validation_fold_calibration_rate=(
+                    float(validation["fold_calibration_rate"])
+                    if validation.get("fold_calibration_rate") is not None
+                    else _fold_calibration_rate(validation, manifest["model_name"])
+                ),
+                validation_fold_gate_enforced=(
+                    validation.get("minimum_fold_calibration_rate") is not None
+                    or validation.get("release_gate", {}).get(
+                        "minimum_fold_calibration_rate"
+                    ) is not None
+                ),
                 feature_values=feature_values,
                 model_comparison=validation.get("comparison", {}),
             )
@@ -294,6 +367,28 @@ class HistoricalDemandModelStore:
                 "pinball_loss": validation["pinball_loss"],
                 "coverage_80": validation["coverage_80"],
                 "coverage_p10": validation["coverage_p10"],
+                "coverage_p50": validation.get("coverage_p50"),
+                "coverage_p90": validation.get("coverage_p90"),
+                "mean_absolute_error": validation.get("mean_absolute_error"),
+                "mean_error": validation.get("mean_error"),
+                "mean_interval_width": validation.get("mean_interval_width"),
+                "fold_calibration_rate": (
+                    validation.get("fold_calibration_rate")
+                    if validation.get("fold_calibration_rate") is not None
+                    else _fold_calibration_rate(validation, self.manifest["model_name"])
+                ),
+                "minimum_fold_calibration_rate": validation.get(
+                    "minimum_fold_calibration_rate",
+                    validation.get("release_gate", {}).get(
+                        "minimum_fold_calibration_rate", 2.0 / 3.0
+                    ),
+                ),
+                "fold_gate_enforced": (
+                    validation.get("minimum_fold_calibration_rate") is not None
+                    or validation.get("release_gate", {}).get(
+                        "minimum_fold_calibration_rate"
+                    ) is not None
+                ),
                 "calibrated": validation["calibrated"],
                 "folds": validation["folds"],
                 "overfit": validation.get("overfit"),

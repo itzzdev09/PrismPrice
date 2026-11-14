@@ -135,7 +135,7 @@ def quantile_coverage(
 
 @dataclass(frozen=True)
 class DemandScore:
-    """Demand model quality, on the terms the objective consumes it."""
+    """Demand quality: point error, quantile calibration, and interval sharpness."""
 
     n: int
     wape: float
@@ -145,18 +145,24 @@ class DemandScore:
     coverage: float
     below_lower: float
     above_upper: float
+    coverage_p50: float
+    mean_absolute_error: float
+    mean_error: float
+    mean_interval_width: float
     nominal_coverage: float = 0.80
     tolerance: float = 0.03
 
     @property
     def calibrated(self) -> bool:
-        """Width within tolerance *and* misses roughly balanced.
+        """Width and placement within tolerance, with the median also calibrated.
 
-        Both, because either alone can hold while the interval is wrong.
+        Width, tail placement, and the p50 hit rate must all pass; one can look
+        healthy while another is materially wrong.
         """
         width_ok = abs(self.coverage - self.nominal_coverage) <= self.tolerance
         placement_ok = abs(self.below_lower - self.above_upper) <= self.tolerance * 2
-        return width_ok and placement_ok
+        median_ok = abs(self.coverage_p50 - 0.50) <= self.tolerance
+        return width_ok and placement_ok and median_ok
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -169,6 +175,10 @@ class DemandScore:
             "nominal_coverage": self.nominal_coverage,
             "below_lower": self.below_lower,
             "above_upper": self.above_upper,
+            "coverage_p50": self.coverage_p50,
+            "mean_absolute_error": self.mean_absolute_error,
+            "mean_error": self.mean_error,
+            "mean_interval_width": self.mean_interval_width,
             "calibrated": self.calibrated,
         }
 
@@ -185,6 +195,14 @@ def score_demand(
         raise ValueError("no observations to score")
 
     coverage = quantile_coverage(actual, p10, p90)
+    median = np.asarray(p50, dtype=float)
+    lower = np.asarray(p10, dtype=float)
+    upper = np.asarray(p90, dtype=float)
+    if not (a.shape == median.shape == lower.shape == upper.shape):
+        raise ValueError("actual, p10, p50 and p90 must align")
+    if np.any((lower > median) | (median > upper)):
+        raise ValueError("demand quantiles must be ordered p10 <= p50 <= p90")
+    error = median - a
     return DemandScore(
         n=int(a.size),
         wape=wape(actual, p50),
@@ -194,6 +212,10 @@ def score_demand(
         coverage=coverage["coverage"],
         below_lower=coverage["below_lower"],
         above_upper=coverage["above_upper"],
+        coverage_p50=float(np.mean(a < median)),
+        mean_absolute_error=float(np.mean(np.abs(error))),
+        mean_error=float(np.mean(error)),
+        mean_interval_width=float(np.mean(upper - lower)),
     )
 
 

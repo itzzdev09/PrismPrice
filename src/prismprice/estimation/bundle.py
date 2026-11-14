@@ -141,6 +141,8 @@ def build_demand_bundle(
         n_folds=n_folds,
         interval_tolerance_pp=5.0,
         tail_tolerance_pp=5.0,
+        median_tolerance_pp=5.0,
+        min_calibrated_fold_fraction=2.0 / 3.0,
     )
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
@@ -211,6 +213,9 @@ def build_demand_bundle(
                     "n_folds": len(backup_score.folds),
                     **asdict(backup_score.pooled),
                     "calibrated": backup_score.calibrated,
+                    "pooled_calibrated": backup_score.pooled_calibrated,
+                    "fold_calibration_rate": backup_score.fold_calibration_rate,
+                    "minimum_fold_calibration_rate": backup_score.minimum_fold_calibration_rate,
                     "folds": [asdict(report) for report in backup_score.folds],
                     "comparison": comparison_payload,
                     "overfit": (
@@ -238,6 +243,9 @@ def build_demand_bundle(
                 "n_folds": len(primary_score.folds),
                 **asdict(primary_score.pooled),
                 "calibrated": primary_score.calibrated,
+                "pooled_calibrated": primary_score.pooled_calibrated,
+                "fold_calibration_rate": primary_score.fold_calibration_rate,
+                "minimum_fold_calibration_rate": primary_score.minimum_fold_calibration_rate,
                 "folds": [asdict(report) for report in primary_score.folds],
                 "comparison": comparison_payload,
                 "overfit": (
@@ -248,6 +256,8 @@ def build_demand_bundle(
                 "release_gate": {
                     "interval_coverage_tolerance_pp": 5.0,
                     "tail_coverage_tolerance_pp": 5.0,
+                    "median_coverage_tolerance_pp": 5.0,
+                    "minimum_fold_calibration_rate": 2.0 / 3.0,
                 },
             },
             "backup_model": backup_artifact,
