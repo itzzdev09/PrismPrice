@@ -56,9 +56,12 @@ __all__ = [
 
 
 class DecisionRepository(Protocol):
-    """Durable append-only sink for decisions returned by the service."""
+    """Durable append-only sink for decisions returned by the service.
 
-    def record_decision(self, record: dict[str, Any]) -> None: ...
+    Must be atomic: either every record in the call is saved or none is.
+    """
+
+    def record_decisions(self, records: list[dict[str, Any]]) -> None: ...
 
 
 class DecisionPersistenceError(RuntimeError):
@@ -102,7 +105,25 @@ class DecisionService:
     repository: DecisionRepository | None = None
 
     def decide(self, request: PriceRequest) -> DecisionOutcome:
-        """Recommend a price, degrading rather than failing.
+        """Recommend a price, degrading rather than failing, and persist it."""
+        outcome = self._score(request)
+        self._persist([outcome])
+        return outcome
+
+    def _persist(self, outcomes: list[DecisionOutcome]) -> None:
+        if self.repository is None:
+            return
+        try:
+            self.repository.record_decisions(
+                [outcome.record.model_dump(mode="json") for outcome in outcomes]
+            )
+        except Exception as exc:
+            raise DecisionPersistenceError(
+                "The decision was scored but could not be saved to the audit store."
+            ) from exc
+
+    def _score(self, request: PriceRequest) -> DecisionOutcome:
+        """Score one request without persisting it.
 
         Forecast failures try a separately validated standby. If neither model
         can produce a valid forecast, or the request has no supported feature
@@ -148,14 +169,6 @@ class DecisionService:
                     )
         except ModelStoreUnavailable as exc:
             outcome = self._maintain_previous(request, reason=str(exc))
-
-        if self.repository is not None:
-            try:
-                self.repository.record_decision(outcome.record.model_dump(mode="json"))
-            except Exception as exc:
-                raise DecisionPersistenceError(
-                    "The decision was scored but could not be saved to the audit store."
-                ) from exc
         return outcome
 
     def _run_engine(
@@ -227,8 +240,13 @@ class DecisionService:
         that returns nothing because a single artefact is missing is how a
         nightly job silently leaves every price stale, so each request degrades
         on its own and the batch always returns one outcome per input.
+
+        Persistence is all-or-nothing: if the audit store rejects the batch,
+        nothing is saved, so the caller can retry without duplicates.
         """
-        return [self.decide(request) for request in requests]
+        outcomes = [self._score(request) for request in requests]
+        self._persist(outcomes)
+        return outcomes
 
     def health(self) -> ServiceHealth:
         from prismprice.compute import compute_report

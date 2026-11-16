@@ -16,6 +16,8 @@ establishes the estimator is right.
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pytest
 
@@ -26,6 +28,11 @@ from prismprice.estimation.retention import (
     CoxSurvivalModel,
     clv_sensitivity,
     price_shock,
+)
+
+# Fitting needs torch; the pure helpers below do not, so skip per test, not per module.
+needs_torch = pytest.mark.skipif(
+    importlib.util.find_spec("torch") is None, reason="torch is not installed"
 )
 
 SEEDS = (11, 23, 37)
@@ -43,6 +50,7 @@ def _survival_frame(seed: int, with_frailty: bool = False):
 
 @pytest.fixture(scope="module")
 def fitted_models():
+    pytest.importorskip("torch")
     out = []
     for seed in SEEDS:
         panel, frame = _survival_frame(seed)
@@ -93,6 +101,7 @@ def test_interval_covers_truth_on_most_panels(fitted_models):
     assert covered >= len(fitted_models) - 1, f"only {covered}/{len(fitted_models)} intervals cover"
 
 
+@needs_torch
 def test_recovers_both_coefficients_when_frailty_is_observed():
     """With the unobserved heterogeneity supplied, both coefficients land.
 
@@ -146,6 +155,7 @@ def test_all_events_at_one_time_is_a_single_risk_set():
     assert last.tolist() == [2, 2, 2]
 
 
+@needs_torch
 def test_a_frame_with_no_events_is_refused():
     """The partial likelihood is defined by the order of events; with none, the
     fit is unidentified and returning a number would be fabrication."""
@@ -155,12 +165,14 @@ def test_a_frame_with_no_events_is_refused():
         CoxSurvivalModel(max_epochs=20).fit(frame)
 
 
+@needs_torch
 def test_missing_columns_are_named():
     _, frame = _survival_frame(11)
     with pytest.raises(ValueError, match="price_shock"):
         CoxSurvivalModel(max_epochs=20).fit(frame.drop(columns=["price_shock"]))
 
 
+@needs_torch
 def test_deep_risk_score_refuses_to_report_a_coefficient():
     """An MLP has no single log-hazard ratio, and inventing one is how a
     decision record ends up quoting a number that does not exist."""
@@ -171,6 +183,7 @@ def test_deep_risk_score_refuses_to_report_a_coefficient():
         fitted.fit_result.coefficient_for("price_shock")
 
 
+@needs_torch
 def test_clustered_and_naive_errors_are_both_available():
     """Recurrent events break the independence the partial likelihood assumes.
 
@@ -302,6 +315,7 @@ def test_fit_serialises_with_its_device(model):
 # ---------------------------------------------------------------------------
 
 
+@needs_torch
 def test_retention_requires_a_gpu(monkeypatch):
     """A torch-backed component, so the hard GPU rule still applies here."""
     from prismprice import compute

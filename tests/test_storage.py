@@ -264,6 +264,14 @@ def test_duplicate_decision_id_is_refused(db):
         db.record_decision(_decision())
 
 
+def test_decision_batch_is_all_or_nothing(db):
+    """A rejected batch must leave nothing behind, so a retry cannot duplicate."""
+    db.record_decision(_decision("d-1"))
+    with pytest.raises(ValueError, match="immutable"):
+        db.record_decisions([_decision("d-2"), _decision("d-1")])
+    assert db.summary()["decisions"] == 1
+
+
 def test_superseding_decision_is_a_new_row(db):
     db.record_decision(_decision("d-1"))
     db.record_decision(_decision("d-2"))

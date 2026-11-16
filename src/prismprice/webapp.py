@@ -88,14 +88,15 @@ def create_demo_app() -> Any:
     )
 
 
-app = create_demo_app()
-
-
 def main() -> None:
-    """Serve locally; a real model store should use its own deployment entry."""
+    """Serve locally; a real model store should use its own deployment entry.
+
+    The app is built by uvicorn's factory call, not at import: importing this
+    module must not open the DuckDB file, which allows only one writer process.
+    """
     import uvicorn
 
-    uvicorn.run("prismprice.webapp:app", host="127.0.0.1", port=8000)
+    uvicorn.run("prismprice.webapp:create_demo_app", factory=True, host="127.0.0.1", port=8000)
 
 
 if __name__ == "__main__":

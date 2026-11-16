@@ -17,6 +17,6 @@ class LockedPriceStoreDecisionRepository:
         self.store = store
         self._lock = RLock()
 
-    def record_decision(self, record: dict[str, Any]) -> None:
+    def record_decisions(self, records: list[dict[str, Any]]) -> None:
         with self._lock:
-            self.store.record_decision(record)
+            self.store.record_decisions(records)

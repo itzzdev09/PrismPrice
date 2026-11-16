@@ -407,22 +407,42 @@ class PriceStore:
         is never mutated, and a correction is a new record linked by
         ``supersedes_id`` (architecture.md §2).
         """
-        decision_id = record["decision_id"]
-        if self._scalar("SELECT count(*) FROM decisions WHERE decision_id = ?", [decision_id]):
-            raise ValueError(
-                f"decision {decision_id} already recorded; decisions are immutable, "
-                f"supersede it with a new record instead"
-            )
-        self._connection.execute(
-            "INSERT INTO decisions VALUES (?, ?, ?, ?, ?)",
+        self.record_decisions([record])
+
+    def record_decisions(self, records: Sequence[dict[str, Any]]) -> None:
+        """Append decision records in one transaction: all are saved or none are.
+
+        A batch that half-saves and then reports failure invites a retry that
+        records the saved half twice under new IDs. The primary key enforces
+        immutability, so there is no read-then-write window between processes.
+        """
+        import duckdb
+
+        rows = [
             [
-                decision_id,
+                record["decision_id"],
                 record["sku"],
                 record["as_of"],
                 record.get("created_at", datetime.now(timezone.utc)),
                 json.dumps(record, default=str),
-            ],
-        )
+            ]
+            for record in records
+        ]
+        if not rows:
+            return
+        self._connection.begin()
+        try:
+            self._connection.executemany("INSERT INTO decisions VALUES (?, ?, ?, ?, ?)", rows)
+            self._connection.commit()
+        except duckdb.ConstraintException as exc:
+            self._connection.rollback()
+            raise ValueError(
+                f"decision already recorded ({exc}); decisions are immutable, "
+                "supersede it with a new record instead"
+            ) from exc
+        except BaseException:
+            self._connection.rollback()
+            raise
 
     # -- introspection -----------------------------------------------------
 

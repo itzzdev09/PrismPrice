@@ -19,7 +19,12 @@ import pytest
 
 from prismprice.decision import DecisionEngine
 from prismprice.governance.schemas import DegradationRung, PriceRequest
-from prismprice.serving import DecisionService, InMemoryModelStore, ModelStoreUnavailable
+from prismprice.serving import (
+    DecisionPersistenceError,
+    DecisionService,
+    InMemoryModelStore,
+    ModelStoreUnavailable,
+)
 from prismprice.serving.app import create_app
 
 AS_OF = datetime(2026, 8, 17, 2, tzinfo=timezone.utc)
@@ -131,6 +136,38 @@ def test_batch_degrades_per_request_not_wholesale(service, store):
     assert len(outcomes) == len(requests)
     assert all(o.record.degradation_rung == 5 for o in outcomes)
     assert [o.record.sku for o in outcomes] == [r.sku for r in requests]
+
+
+def test_batch_is_persisted_in_one_atomic_call(store):
+    """A half-saved batch reported as failed is retried and saved twice."""
+
+    class FailingRepository:
+        def __init__(self) -> None:
+            self.calls: list[list[dict]] = []
+
+        def record_decisions(self, records):
+            self.calls.append(records)
+            raise OSError("disk full")
+
+    repository = FailingRepository()
+    service = DecisionService(store=store, repository=repository)
+    with pytest.raises(DecisionPersistenceError):
+        service.decide_batch([make_request(sku=f"SKU-{i:03d}") for i in range(3)])
+    assert [len(call) for call in repository.calls] == [3]
+
+
+def test_webapp_import_has_no_side_effects_and_factory_serves(tmp_path, monkeypatch):
+    """Importing must not open DuckDB, which allows only one writer process."""
+    from fastapi.testclient import TestClient
+
+    import prismprice.webapp as webapp
+
+    assert not hasattr(webapp, "app")
+    monkeypatch.setenv("PRISMPRICE_DB_PATH", str(tmp_path / "missing.duckdb"))
+    client = TestClient(webapp.create_demo_app(), base_url="http://localhost")
+    body = client.get("/health").json()
+    assert body["model_store_available"] is False
+    assert body["decision_store_available"] is False
 
 
 def test_health_probes_rather_than_remembers(service, store):
